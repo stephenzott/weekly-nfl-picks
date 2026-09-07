@@ -128,7 +128,7 @@ Collections (each a set of documents/"cards" with the following fields):
 - `slot`: `"AM"` | `"PM"` | `"SNF"` | `"MNF"` | `"WildCardPool"` | `"Bonus"` | `"Playoff"`
 - `homeTeam`, `awayTeam`
 - `kickoffTime` (timestamp — drives both the pick lock and the visibility reveal)
-- `spread` (e.g. `{ favoredTeam: "Eagles", line: -8.5 }`)
+- `spread` (e.g. `{ favoredTeam: "Eagles", line: -8.5 }` conceptually — **implementation note, decided during build:** `line` is stored as a positive magnitude, e.g. `{ favoredTeam: "Eagles", line: 8.5 }`. Since `favoredTeam` already identifies which side is favored, the sign in the spec's example was redundant; storing a positive magnitude keeps settlement/margin arithmetic simpler. Display code derives the `-`/`+` prefix from whether a team matches `favoredTeam`.)
 - `total` (number, e.g. `47.5`)
 - `finalScore` (e.g. `{ home: 24, away: 20 }`, null until final)
 - `status`: `"scheduled"` | `"final"`

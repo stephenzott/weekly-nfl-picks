@@ -47,7 +47,8 @@ jobs:
           # has to be committed to the repo. Set this in GitHub repo Settings ->
           # Secrets and variables -> Actions -> New repository secret, named
           # VITE_ODDS_API_KEY. Vite only exposes env vars prefixed with VITE_ to
-          # client code (see src/config/firebase.ts / odds API client for usage).
+          # client code. Not used yet — the Odds API integration (PROJECT_SPEC.md
+          # Section 4.7/8) hasn't been built, and Stephen hasn't provided a key.
           VITE_ODDS_API_KEY: ${{ secrets.VITE_ODDS_API_KEY }}
 
       - name: Upload build output as a Pages artifact
