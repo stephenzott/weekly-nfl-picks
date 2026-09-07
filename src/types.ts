@@ -75,6 +75,10 @@ export interface Pick {
   userId: string
   gameId: string
   weekId: string
+  // May differ from the game's own `slot` — e.g. the same WildCardPool game
+  // could be one user's "WildCard" pick and simultaneously another user's
+  // auto-computed "HighSpread" pick (PROJECT_SPEC.md Section 5).
+  pickType: PickType
   spreadSide: string // e.g. "Eagles -8.5"
   spreadStake: number // >= 10
   totalSide: TotalSide | null
