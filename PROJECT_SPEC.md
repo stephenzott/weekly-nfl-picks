@@ -91,7 +91,13 @@ These draw from the same $120 weekly budget as that week's spread pick (see 4.2)
 
 A user's picks for a given game are hidden from all other users until that specific game's kickoff time passes. This is a PER-GAME reveal, not a per-week reveal — e.g., once the 1pm games kick off, everyone's 1pm picks become visible, even though SNF/MNF picks for that same week are still hidden because those games haven't started yet. This is enforced at the UI level only (see Section 3 note on auth/security tradeoffs) — simply don't query/display other users' pick documents for a game until `now >= game.kickoffTime`.
 
-### 4.7 Admin Tab
+### 4.7 Odds Fetch Timing
+
+Since this is a static site with no backend/cron, odds are never pulled automatically in the background — it's always a manual, user-triggered action. Build a **"Fetch Odds" button in the admin tab** that calls The Odds API on demand when an admin is setting up a week's games (typically early in the week once the NFL schedule/lines are out). It's fine to click it again later in the week to refresh if lines have moved. However, once users have started submitting picks for a game, that game's line should be treated as locked — don't let a later "Fetch Odds" refresh silently overwrite a spread/total that people have already picked against. Manual admin override of the spread/total should always remain available regardless (for corrections, or games the API didn't return).
+
+Note: since there's no backend, the API key will be embedded directly in the public frontend JS bundle and is technically visible to anyone who inspects network requests or source. This was discussed and explicitly accepted as a reasonable tradeoff for a free-tier key used by a small private group — no additional proxy/obfuscation layer is needed.
+
+### 4.8 Admin Tab
 
 Available to all 5 users (no special admin-only role). Functionality:
 - Add games for a given week (teams, kickoff time/date, slot type: AM/PM/SNF/MNF/WildCardPool/Bonus/Playoff)
@@ -100,7 +106,7 @@ Available to all 5 users (no special admin-only role). Functionality:
 - Enter/confirm final scores to settle bets (auto-fill attempt via ESPN scoreboard endpoint, always manually editable/overridable)
 - Add the 4 Season Win Totals bets before the season (see 4.4)
 
-### 4.8 Leaderboard / Standings
+### 4.9 Leaderboard / Standings
 
 Track and display, per user:
 - Weekly profit/loss (sum of that week's settled picks, including totals and any props/season-win-totals that settled that week)
@@ -128,7 +134,7 @@ Collections (each a set of documents/"cards" with the following fields):
 - `slot`: `"AM"` | `"PM"` | `"SNF"` | `"MNF"` | `"WildCardPool"` | `"Bonus"` | `"Playoff"`
 - `homeTeam`, `awayTeam`
 - `kickoffTime` (timestamp — drives both the pick lock and the visibility reveal)
-- `spread` (e.g. `{ favoredTeam: "Eagles", line: -8.5 }` conceptually — **implementation note, decided during build:** `line` is stored as a positive magnitude, e.g. `{ favoredTeam: "Eagles", line: 8.5 }`. Since `favoredTeam` already identifies which side is favored, the sign in the spec's example was redundant; storing a positive magnitude keeps settlement/margin arithmetic simpler. Display code derives the `-`/`+` prefix from whether a team matches `favoredTeam`.)
+- `spread` (e.g. `{ favoredTeam: "Eagles", line: -8.5 }`)
 - `total` (number, e.g. `47.5`)
 - `finalScore` (e.g. `{ home: 24, away: 20 }`, null until final)
 - `status`: `"scheduled"` | `"final"`

@@ -1,9 +1,11 @@
 import { useGamesForWeek } from '../../hooks/useGamesForWeek'
+import { useNow } from '../../hooks/useNow'
 import { usePicksForWeek } from '../../hooks/usePicksForWeek'
 import { computeSlotsForRegularWeek, type Slot } from '../../lib/slots'
 import type { Pick, Week } from '../../types'
 import { BudgetSummary } from './BudgetSummary'
 import { PickSlot } from './PickSlot'
+import { RevealedPicks } from './RevealedPicks'
 
 interface WeekPicksProps {
   week: Week
@@ -27,6 +29,7 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
   const games = useGamesForWeek(week.id)
   const allPicks = usePicksForWeek(week.id)
   const myPicks = allPicks.filter((p) => p.userId === userId)
+  const now = useNow()
 
   if (week.type === 'playoff') {
     return <p>Playoff-week picks aren't built yet.</p>
@@ -73,9 +76,13 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
             existingPick={existingPick}
             budget={week.budget}
             otherPicksTotal={otherPicksTotal}
+            now={now}
           />
         )
       })}
+
+      <hr />
+      <RevealedPicks games={games} allPicks={allPicks} now={now} />
     </div>
   )
 }
