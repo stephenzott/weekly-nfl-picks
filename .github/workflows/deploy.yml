@@ -1,0 +1,67 @@
+# This is a "GitHub Actions workflow" — a script that GitHub itself runs on its own
+# servers in response to events in this repo (here: pushes to main). This is standard
+# software-engineering practice called CI/CD (Continuous Integration/Continuous
+# Deployment) — instead of you running build/deploy commands by hand on your laptop,
+# the same steps run automatically and identically every time, in a clean environment.
+name: Deploy to GitHub Pages
+
+on:
+  # Run whenever code lands on main...
+  push:
+    branches: [main]
+  # ...or manually, via the "Run workflow" button in the GitHub Actions tab.
+  workflow_dispatch:
+
+# Grant this workflow permission to publish to GitHub Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only let one deployment run at a time; if a new push comes in while one is running,
+# cancel the older one rather than letting them race each other.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the static site
+        run: npm run build
+        env:
+          # Injected as a build-time environment variable so the Odds API key never
+          # has to be committed to the repo. Set this in GitHub repo Settings ->
+          # Secrets and variables -> Actions -> New repository secret, named
+          # VITE_ODDS_API_KEY. Vite only exposes env vars prefixed with VITE_ to
+          # client code (see src/config/firebase.ts / odds API client for usage).
+          VITE_ODDS_API_KEY: ${{ secrets.VITE_ODDS_API_KEY }}
+
+      - name: Upload build output as a Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
