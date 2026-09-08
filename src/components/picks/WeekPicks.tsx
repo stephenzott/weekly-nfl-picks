@@ -166,6 +166,30 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
         const otherCommittedTotal = totalCommitted - committedStake(entry)
         const otherUnfilled = entries.filter((e) => e !== entry && !isFilled(e)).length
         const reserveForOtherEntries = otherUnfilled * MIN_STAKE
+        // Per Stephen (2026-09-08): the $120 weekly budget should be forced
+        // to land on exactly $120 across the required PICKS, same "last
+        // one auto-absorbs the remainder" trick as Season Win Totals'
+        // forced 4th bet (see SeasonWinTotalsSection.tsx).
+        //
+        // Props (rare — Super Bowl week only) are deliberately left OUT of
+        // this for now: forcing "whichever pick or prop is truly last"
+        // would guarantee $120 in every week, but forcing picks-only
+        // without checking props creates a real bug — if a prop is still
+        // unfilled when the last pick is reached, reserveForOtherEntries
+        // (below) is holding back $10 per unfilled prop, which SQUEEZES
+        // the forced pick down and leaves each prop pinned at exactly its
+        // $10 minimum with no real choice — the opposite of "props stay
+        // free." Per Stephen (2026-09-08), that's a decision to make when
+        // props weeks are actually being built out for playoffs, not now
+        // — so this is intentionally the SAFE subset: forcing only
+        // engages once every prop this week is already filled (trivially
+        // true every week with zero props, i.e. every week so far). Until
+        // then, the last pick behaves like an ordinary free-entry pick.
+        const otherUnfilledPicks = slotEntries.filter(
+          (e) => e !== entry && e.kind === 'pick' && !isFilled(e),
+        ).length
+        const allPropsFilled = propEntries.every(isFilled)
+        const isLastPick = !isFilled(entry) && otherUnfilledPicks === 0 && allPropsFilled
         return (
           <PickSlot
             // PickSlot only reads `existingPick` once, when it first mounts
@@ -187,6 +211,7 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
             budget={week.budget}
             otherPicksTotal={otherCommittedTotal}
             reserveForOtherSlots={reserveForOtherEntries}
+            isLastPick={isLastPick}
             now={now}
           />
         )

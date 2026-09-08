@@ -29,6 +29,15 @@ interface PickSlotProps {
   // the $120 cap. Stephen, 2026-09-07: real picks give way so the $10
   // floor always fits, rather than letting misses exceed the cap.
   reserveForOtherSlots: number
+  // True when every OTHER required pick this week already has a saved
+  // value and this one doesn't yet — i.e., this is the very last pick
+  // standing between "some money unspent" and "exactly $120 spent."
+  // Per Stephen (2026-09-08): when true, this slot's stake isn't freely
+  // entered — it's forced to whatever's left, same trick as Season Win
+  // Totals' forced 4th bet (SeasonWinTotalsSection.tsx). Deliberately
+  // computed over PICKS only (see WeekPicks.tsx) — props stay freely
+  // entered even in the rare week that has them.
+  isLastPick: boolean
   // Current time, polled by the parent (see useNow) so the UI locks itself
   // automatically as kickoff times pass, without needing a page refresh.
   now: Date
@@ -42,6 +51,7 @@ export function PickSlot({
   budget,
   otherPicksTotal,
   reserveForOtherSlots,
+  isLastPick,
   now,
 }: PickSlotProps) {
   // For a "poolChoice" slot (AM/PM/WildCard) the user first has to choose
@@ -101,11 +111,16 @@ export function PickSlot({
   // for every other slot that still needs a legal pick of its own (see the
   // reserveForOtherSlots prop doc for why).
   const effectiveBudget = budget - reserveForOtherSlots
-  const projectedTotal = otherPicksTotal + spreadStake
-  const wouldExceedBudget = projectedTotal > effectiveBudget
+  // The forced final stake for the last pick: whatever's left. The reserve
+  // math above guarantees this is always >= MIN_STAKE by the time it's
+  // actually the last pick (every prior pick was capped to leave enough
+  // behind) — same reasoning as Season Win Totals' forced 4th bet.
+  const effectiveStake = isLastPick ? effectiveBudget - otherPicksTotal : spreadStake
+  const projectedTotal = otherPicksTotal + effectiveStake
+  const wouldExceedBudget = !isLastPick && projectedTotal > effectiveBudget
 
   const canSave = Boolean(
-    game && spreadSide && spreadStake >= MIN_STAKE && !wouldExceedBudget && !locked,
+    game && spreadSide && effectiveStake >= MIN_STAKE && !wouldExceedBudget && !locked,
   )
 
   async function handleSave() {
@@ -122,7 +137,7 @@ export function PickSlot({
       setError('This game has already kicked off.')
       return
     }
-    if (spreadStake < MIN_STAKE) {
+    if (effectiveStake < MIN_STAKE) {
       // PROJECT_SPEC.md Section 4.3: "$10 minimum bet per pick." This is a
       // second check (the button is already disabled below MIN_STAKE) in
       // case this function is ever called from somewhere that skips that
@@ -146,11 +161,11 @@ export function PickSlot({
         gameId: game.id,
         weekId,
         spreadSide,
-        spreadStake,
+        spreadStake: effectiveStake,
         totalSide: totalEnabled ? totalSide : null,
         // The mirrored-total rule (Section 4.3): the total's stake always
         // equals the spread stake, never entered independently.
-        totalStake: totalEnabled ? spreadStake : null,
+        totalStake: totalEnabled ? effectiveStake : null,
         // Always 'pending' here, not existingPick's old value: handleSave
         // can only run before this pick's game has kicked off (see the
         // `locked` check above), and the settlement engine only ever
@@ -249,12 +264,31 @@ export function PickSlot({
                 type="number"
                 min={MIN_STAKE}
                 step={1}
-                value={spreadStake}
+                value={isLastPick ? effectiveStake : spreadStake}
                 onChange={(e) => setSpreadStake(Number(e.target.value))}
-                disabled={locked}
+                disabled={locked || isLastPick}
               />
             </label>
-            {!locked && wouldExceedBudget && (
+            {isLastPick && !locked && effectiveStake >= MIN_STAKE && (
+              <p>
+                Last pick — stake locked at ${effectiveStake} to bring your week to exactly $
+                {budget}.
+              </p>
+            )}
+            {isLastPick && !locked && effectiveStake < MIN_STAKE && (
+              // Can only happen if an admin added a new required game/prop
+              // AFTER earlier picks were already saved this week, leaving
+              // less than the $10 minimum for this one — not something a
+              // normal pick flow can trigger on its own. Surfacing why
+              // (rather than a silently disabled button) points at the
+              // actual fix: an earlier pick needs to be lowered first.
+              <p style={{ color: 'red' }}>
+                Only ${effectiveStake} is left for this pick — below the ${MIN_STAKE} minimum. This
+                usually means a game/prop was added to this week after earlier picks were already
+                saved; lower an earlier pick's stake to free up room.
+              </p>
+            )}
+            {!locked && !isLastPick && wouldExceedBudget && (
               <p style={{ color: 'red' }}>
                 {reserveForOtherSlots > 0
                   ? `That would leave less than $${MIN_STAKE} for your other unpicked slots this week ($${reserveForOtherSlots} needs to stay reserved).`
@@ -272,7 +306,7 @@ export function PickSlot({
                   onChange={(e) => setTotalEnabled(e.target.checked)}
                   disabled={locked}
                 />{' '}
-                Also bet the total ({game.total}) — stake mirrors the spread stake (${spreadStake})
+                Also bet the total ({game.total}) — stake mirrors the spread stake (${effectiveStake})
               </label>
               {totalEnabled && (
                 <div>
