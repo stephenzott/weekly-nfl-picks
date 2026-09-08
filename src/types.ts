@@ -83,7 +83,14 @@ export interface Pick {
   spreadStake: number // >= 10
   totalSide: TotalSide | null
   totalStake: number | null // always equals spreadStake when totalSide is set
-  result: PickResult
+  result: PickResult // the SPREAD bet's result
+  // The total bet's result, settled independently from `result` above —
+  // a pick's spread and total can win/lose/push differently (e.g. the
+  // spread covers while the total pushes). null whenever totalSide is
+  // null (no total bet placed). Added during build (2026-09-07): the
+  // spec's original one-`result`-per-pick shape had no way to record two
+  // independent outcomes on the same document.
+  totalResult: PickResult | null
   isDefaultLoss: boolean
 }
 

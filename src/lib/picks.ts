@@ -1,6 +1,6 @@
-import { collection, doc, onSnapshot, query, setDoc, where } from 'firebase/firestore'
+import { collection, doc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase'
-import type { Pick } from '../types'
+import type { Pick, PickResult } from '../types'
 
 const picksCollection = collection(db, 'picks')
 
@@ -60,4 +60,15 @@ export async function savePick(pick: Omit<Pick, 'id'>): Promise<void> {
   // "save" double as both "create my pick" and "edit my pick" with one
   // function, since we always know the exact document ID to write to.
   await setDoc(doc(db, 'picks', id), pick, { merge: true })
+}
+
+// Used by the settlement engine (src/lib/settleWeek.ts) to write a
+// computed win/loss/push back onto an existing pick, without touching any
+// of its other fields.
+export async function updatePickResult(
+  pickId: string,
+  result: PickResult,
+  totalResult: PickResult | null,
+): Promise<void> {
+  await updateDoc(doc(db, 'picks', pickId), { result, totalResult })
 }

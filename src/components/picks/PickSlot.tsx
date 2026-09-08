@@ -151,7 +151,14 @@ export function PickSlot({
         // The mirrored-total rule (Section 4.3): the total's stake always
         // equals the spread stake, never entered independently.
         totalStake: totalEnabled ? spreadStake : null,
-        result: existingPick?.result ?? 'pending',
+        // Always 'pending' here, not existingPick's old value: handleSave
+        // can only run before this pick's game has kicked off (see the
+        // `locked` check above), and the settlement engine only ever
+        // settles games that are already final — so there's no scenario
+        // where a real result could already exist for a pick that's still
+        // editable.
+        result: 'pending',
+        totalResult: totalEnabled ? 'pending' : null,
         isDefaultLoss: false,
         pickType: slot.pickType,
       })

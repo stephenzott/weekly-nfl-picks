@@ -48,6 +48,7 @@ export function RevealedPicks({ games, allPicks, now }: RevealedPicksProps) {
                     <th>Pick Type</th>
                     <th>Spread</th>
                     <th>Stake</th>
+                    <th>Result</th>
                     <th>Total</th>
                   </tr>
                 </thead>
@@ -58,10 +59,11 @@ export function RevealedPicks({ games, allPicks, now }: RevealedPicksProps) {
                       <td>{pick.isDefaultLoss ? 'No Pick' : pick.pickType}</td>
                       <td>{pick.isDefaultLoss ? '—' : pick.spreadSide}</td>
                       <td>${pick.spreadStake}</td>
+                      <td>{pick.result}</td>
                       <td>
                         {pick.isDefaultLoss || !pick.totalSide
                           ? '—'
-                          : `${pick.totalSide} ($${pick.totalStake})`}
+                          : `${pick.totalSide} ($${pick.totalStake}) — ${pick.totalResult}`}
                       </td>
                     </tr>
                   ))}

@@ -145,7 +145,8 @@ Collections (each a set of documents/"cards" with the following fields):
 - `spreadSide` (e.g. `"Eagles -8.5"`), `spreadStake` (number, min 10)
 - `pickType`: `"AM"` | `"PM"` | `"SNF"` | `"MNF"` | `"WildCard"` | `"HighSpread"` | `"Bonus"` | `"Playoff"` — note this may differ conceptually from the game's own `slot`, since e.g. the same wild-card-pool game could simultaneously be someone's "WildCard" pick type and also happen to be the auto-computed "HighSpread" pick for someone else
 - `totalSide` (`"over"` | `"under"` | null), `totalStake` (number or null — always equal to `spreadStake` when `totalSide` is set)
-- `result`: `"win"` | `"loss"` | `"push"` | `"pending"`
+- `result`: `"win"` | `"loss"` | `"push"` | `"pending"` — the SPREAD bet's result
+- `totalResult`: `"win"` | `"loss"` | `"push"` | `"pending"` | `null` — **implementation note, added during build (2026-09-07):** the spec originally had only one `result` field per pick, but a pick's spread and mirrored total bet settle independently (e.g. spread covers while the total pushes) and need separate outcomes recorded. `null` whenever `totalSide` is null (no total bet placed).
 - `isDefaultLoss`: boolean (true if this was auto-generated from a missed pick)
 
 **`seasonWinTotals`**

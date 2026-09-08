@@ -5,6 +5,7 @@ import { usePicksForWeek } from '../../hooks/usePicksForWeek'
 import { useUsers } from '../../hooks/useUsers'
 import { MIN_STAKE } from '../../lib/constants'
 import { backfillMissedPicksForWeek } from '../../lib/missedPicks'
+import { settleWeekPicks } from '../../lib/settleWeek'
 import { computeSlotsForRegularWeek, findExistingPick } from '../../lib/slots'
 import type { Week } from '../../types'
 import { BudgetSummary } from './BudgetSummary'
@@ -39,6 +40,17 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
     if (games.length === 0 || users.length === 0) return
     backfillMissedPicksForWeek(week, games, allPicks, users, now)
   }, [week, games, allPicks, users, now])
+
+  // Settlement engine (Section 4.3/4.8): whenever anyone views this week
+  // and it has a game marked 'final', compute and write in the real
+  // win/loss/push for every pick referencing that game. Self-healing like
+  // the backfill above — see settleWeekPicks for why re-running this on
+  // every change is safe (it overwrites with the same values if nothing
+  // about the game or pick has actually changed).
+  useEffect(() => {
+    if (games.length === 0) return
+    settleWeekPicks(games, allPicks)
+  }, [games, allPicks])
 
   if (week.type === 'playoff') {
     return <p>Playoff-week picks aren't built yet.</p>

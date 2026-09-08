@@ -61,6 +61,7 @@ export async function backfillMissedPicksForWeek(
         totalSide: null,
         totalStake: null,
         result: 'loss',
+        totalResult: null, // no total bet on a missed pick
         isDefaultLoss: true,
       })
     }
