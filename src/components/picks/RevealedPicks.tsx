@@ -53,13 +53,15 @@ export function RevealedPicks({ games, allPicks, now }: RevealedPicksProps) {
                 </thead>
                 <tbody>
                   {picksForGame.map((pick) => (
-                    <tr key={pick.id}>
+                    <tr key={pick.id} style={pick.isDefaultLoss ? { opacity: 0.6 } : undefined}>
                       <td>{userName(pick.userId)}</td>
                       <td>{pick.isDefaultLoss ? 'No Pick' : pick.pickType}</td>
-                      <td>{pick.spreadSide}</td>
+                      <td>{pick.isDefaultLoss ? '—' : pick.spreadSide}</td>
                       <td>${pick.spreadStake}</td>
                       <td>
-                        {pick.totalSide ? `${pick.totalSide} ($${pick.totalStake})` : '—'}
+                        {pick.isDefaultLoss || !pick.totalSide
+                          ? '—'
+                          : `${pick.totalSide} ($${pick.totalStake})`}
                       </td>
                     </tr>
                   ))}

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { MIN_STAKE } from '../../lib/constants'
+import { hasKickedOff } from '../../lib/gameTiming'
 import { savePick } from '../../lib/picks'
 import { getSpreadOptions } from '../../lib/spreadOptions'
 import type { Game, Pick, TotalSide } from '../../types'
@@ -10,6 +12,8 @@ interface PickSlotProps {
   userId: string
   // This user's already-saved pick for this slot, if any — used to
   // pre-fill the form so re-opening the app shows what you already picked.
+  // May be a real pick OR a system-generated default-loss pick backfilled
+  // by src/lib/missedPicks.ts after this user missed the deadline.
   existingPick: Pick | undefined
   // The week's total budget (almost always $120) and how much of it this
   // user has already committed to OTHER slots — used to enforce the budget
@@ -17,15 +21,17 @@ interface PickSlotProps {
   // not just warned about).
   budget: number
   otherPicksTotal: number
+  // $10 (MIN_STAKE) for every OTHER slot this user hasn't picked yet this
+  // week. Reserved off the top of the remaining budget so this slot's
+  // stake can never leave a later required slot with less than $10 of
+  // room — which would otherwise force a miss that the missed-pick rule's
+  // flat $10 default-loss (src/lib/missedPicks.ts) would then push over
+  // the $120 cap. Stephen, 2026-09-07: real picks give way so the $10
+  // floor always fits, rather than letting misses exceed the cap.
+  reserveForOtherSlots: number
   // Current time, polled by the parent (see useNow) so the UI locks itself
   // automatically as kickoff times pass, without needing a page refresh.
   now: Date
-}
-
-const MIN_STAKE = 10
-
-function hasKickedOff(game: Game, now: Date): boolean {
-  return game.kickoffTime.toDate().getTime() <= now.getTime()
 }
 
 export function PickSlot({
@@ -35,6 +41,7 @@ export function PickSlot({
   existingPick,
   budget,
   otherPicksTotal,
+  reserveForOtherSlots,
   now,
 }: PickSlotProps) {
   // For a "poolChoice" slot (AM/PM/WildCard) the user first has to choose
@@ -89,8 +96,13 @@ export function PickSlot({
 
   const spreadOptions = game ? getSpreadOptions(game) : null
 
+  // The effective cap for THIS slot's stake isn't the full $120 — it's
+  // $120 minus what's already committed elsewhere, minus a $10 reserve
+  // for every other slot that still needs a legal pick of its own (see the
+  // reserveForOtherSlots prop doc for why).
+  const effectiveBudget = budget - reserveForOtherSlots
   const projectedTotal = otherPicksTotal + spreadStake
-  const wouldExceedBudget = projectedTotal > budget
+  const wouldExceedBudget = projectedTotal > effectiveBudget
 
   const canSave = Boolean(
     game && spreadSide && spreadStake >= MIN_STAKE && !wouldExceedBudget && !locked,
@@ -120,7 +132,9 @@ export function PickSlot({
     }
     if (wouldExceedBudget) {
       setError(
-        `This would put you at $${projectedTotal} for the week, over the $${budget} budget.`,
+        reserveForOtherSlots > 0
+          ? `This would leave less than $${MIN_STAKE} for your other unpicked slots this week ($${reserveForOtherSlots} needs to stay reserved).`
+          : `This would put you at $${projectedTotal} for the week, over the $${budget} budget.`,
       )
       return
     }
@@ -144,6 +158,35 @@ export function PickSlot({
     } finally {
       setSaving(false)
     }
+  }
+
+  // A backfilled default-loss pick (src/lib/missedPicks.ts) isn't
+  // something to edit — PROJECT_SPEC.md Section 4.3 asks for it to
+  // "display differently in the UI (e.g., grayed out, labeled 'No
+  // Pick')," so it gets its own compact, read-only rendering instead of
+  // the normal side/stake/total form (which would otherwise show empty,
+  // disabled controls that don't explain themselves).
+  if (existingPick?.isDefaultLoss) {
+    const missedGame =
+      slot.kind === 'fixedGame'
+        ? slot.game
+        : slot.candidates.find((g) => g.id === existingPick.gameId)
+    const matchupLabel = missedGame ? `${missedGame.awayTeam} @ ${missedGame.homeTeam}` : null
+    return (
+      <div
+        style={{
+          border: '1px solid #ccc',
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 12,
+          opacity: 0.6,
+        }}
+      >
+        <strong>{slot.label}</strong>{' '}
+        <span style={{ color: 'red' }}>❌ No Pick — missed, automatic $10 loss</span>
+        {matchupLabel && <div>{matchupLabel}</div>}
+      </div>
+    )
   }
 
   return (
@@ -206,7 +249,9 @@ export function PickSlot({
             </label>
             {!locked && wouldExceedBudget && (
               <p style={{ color: 'red' }}>
-                That would put you at ${projectedTotal} for the week — over the ${budget} budget.
+                {reserveForOtherSlots > 0
+                  ? `That would leave less than $${MIN_STAKE} for your other unpicked slots this week ($${reserveForOtherSlots} needs to stay reserved).`
+                  : `That would put you at $${projectedTotal} for the week — over the $${budget} budget.`}
               </p>
             )}
           </div>

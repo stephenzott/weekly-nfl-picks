@@ -1,4 +1,4 @@
-import type { Game, PickType } from '../types'
+import type { Game, Pick, PickType } from '../types'
 
 // Describes one row the user needs to fill out on the Picks screen.
 //
@@ -86,4 +86,29 @@ export function computeSlotsForRegularWeek(games: Game[]): Slot[] {
   }
 
   return slots
+}
+
+// Finds one user's already-saved pick for a given slot (a real pick OR a
+// backfilled default-loss one — see src/lib/missedPicks.ts). Most slot
+// types are "singletons" — a user gets exactly one pick for it per week,
+// matched by pickType alone (see the matching comment in src/lib/picks.ts
+// on why the deterministic doc ID scheme guarantees this). Two slot types
+// also need a gameId match:
+//  - Bonus is repeatable: multiple bonus games all share pickType "Bonus",
+//    so pickType alone can't tell them apart.
+//  - HighSpread's underlying game can change out from under it: it's
+//    recomputed fresh every render (PROJECT_SPEC.md Section 4.1 item 6),
+//    so if an admin corrects a line and a different game becomes the
+//    week's highest spread, a pick (real or backfilled) against the OLD
+//    high-spread game must NOT be treated as "already answered" for the
+//    NEW one — otherwise a user could get permanently stuck showing a
+//    stale default-loss pick for a slot whose real deadline hasn't
+//    arrived yet. Requiring gameId to match means the old pick just
+//    becomes invisible to the new slot (harmless leftover data) rather
+//    than blocking it.
+export function findExistingPick(myPicks: Pick[], slot: Slot): Pick | undefined {
+  if (slot.kind === 'fixedGame' && (slot.pickType === 'Bonus' || slot.pickType === 'HighSpread')) {
+    return myPicks.find((p) => p.pickType === slot.pickType && p.gameId === slot.game.id)
+  }
+  return myPicks.find((p) => p.pickType === slot.pickType)
 }

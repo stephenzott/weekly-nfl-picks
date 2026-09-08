@@ -1,8 +1,12 @@
+import { useEffect } from 'react'
 import { useGamesForWeek } from '../../hooks/useGamesForWeek'
 import { useNow } from '../../hooks/useNow'
 import { usePicksForWeek } from '../../hooks/usePicksForWeek'
-import { computeSlotsForRegularWeek, type Slot } from '../../lib/slots'
-import type { Pick, Week } from '../../types'
+import { useUsers } from '../../hooks/useUsers'
+import { MIN_STAKE } from '../../lib/constants'
+import { backfillMissedPicksForWeek } from '../../lib/missedPicks'
+import { computeSlotsForRegularWeek, findExistingPick } from '../../lib/slots'
+import type { Week } from '../../types'
 import { BudgetSummary } from './BudgetSummary'
 import { PickSlot } from './PickSlot'
 import { RevealedPicks } from './RevealedPicks'
@@ -12,24 +16,29 @@ interface WeekPicksProps {
   userId: string
 }
 
-// Finds this user's already-saved pick for a given slot, so PickSlot can
-// pre-fill the form. Every slot type except Bonus is a "singleton" — a user
-// gets exactly one pick for it per week, matched by pickType alone (see the
-// matching comment in src/lib/picks.ts). Bonus is the one repeatable slot
-// (multiple bonus games all share pickType "Bonus"), so it also has to
-// match the specific gameId.
-function findExistingPick(myPicks: Pick[], slot: Slot): Pick | undefined {
-  if (slot.kind === 'fixedGame' && slot.pickType === 'Bonus') {
-    return myPicks.find((p) => p.pickType === 'Bonus' && p.gameId === slot.game.id)
-  }
-  return myPicks.find((p) => p.pickType === slot.pickType)
-}
-
 export function WeekPicks({ week, userId }: WeekPicksProps) {
   const games = useGamesForWeek(week.id)
   const allPicks = usePicksForWeek(week.id)
+  const users = useUsers()
   const myPicks = allPicks.filter((p) => p.userId === userId)
   const now = useNow()
+
+  // PROJECT_SPEC.md Section 4.3: whenever anyone opens the app, scan for
+  // missed picks and backfill $10 default losses. Per Stephen (2026-09-07):
+  // this runs for ALL 5 users (not just whoever is currently selected on
+  // this device) since nothing stops one person's visit from writing
+  // another user's missed-pick record, and otherwise a friend who never
+  // reopens the app after missing a pick would never get it recorded. It's
+  // scoped to just the week currently being viewed — since the Picks
+  // screen defaults to the most recently added week, simply having anyone
+  // open the app during/after the current week is enough to catch it.
+  // Re-running this whenever `games`/`allPicks`/`users`/`now` change is
+  // safe: it's idempotent (skips any slot that already has a pick) and the
+  // data volume is tiny, so there's no real cost to checking often.
+  useEffect(() => {
+    if (games.length === 0 || users.length === 0) return
+    backfillMissedPicksForWeek(week, games, allPicks, users, now)
+  }, [week, games, allPicks, users, now])
 
   if (week.type === 'playoff') {
     return <p>Playoff-week picks aren't built yet.</p>
@@ -41,11 +50,17 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
     return <p>No games have been added for this week yet — check the Admin tab.</p>
   }
 
+  // Computed once up front (rather than inline per slot below) because
+  // `reserveForOtherSlots` needs to know, for each slot, how many OF THE
+  // OTHER slots are still unpicked — which means every slot's existingPick
+  // has to already be known before any of them can compute their own
+  // reserve.
+  const slotEntries = slots.map((slot) => ({ slot, existingPick: findExistingPick(myPicks, slot) }))
+
   return (
     <div>
       <BudgetSummary budget={week.budget} myPicks={myPicks} />
-      {slots.map((slot, i) => {
-        const existingPick = findExistingPick(myPicks, slot)
+      {slotEntries.map(({ slot, existingPick }, i) => {
         // Everything this user has already staked on OTHER slots this
         // week — i.e. the $120 budget minus whatever this specific slot
         // already accounts for. PickSlot uses this to figure out how much
@@ -54,6 +69,15 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
         const otherPicksTotal = myPicks
           .filter((p) => p.id !== existingPick?.id)
           .reduce((sum, p) => sum + p.spreadStake, 0)
+        // $10 reserved for every OTHER slot this user hasn't picked yet —
+        // see PickSlot's reserveForOtherSlots prop doc for why this exists
+        // (Stephen, 2026-09-07: the $10-minimum and $120-cap rules would
+        // otherwise be able to strand a user with no legal stake left for
+        // a required slot).
+        const otherUnpickedSlots = slotEntries.filter(
+          (entry) => entry.slot !== slot && !entry.existingPick,
+        ).length
+        const reserveForOtherSlots = otherUnpickedSlots * MIN_STAKE
         return (
           <PickSlot
             // PickSlot only reads `existingPick` once, when it first mounts
@@ -76,6 +100,7 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
             existingPick={existingPick}
             budget={week.budget}
             otherPicksTotal={otherPicksTotal}
+            reserveForOtherSlots={reserveForOtherSlots}
             now={now}
           />
         )
