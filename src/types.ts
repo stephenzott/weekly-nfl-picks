@@ -100,13 +100,28 @@ export interface SeasonWinTotal {
   result: PickResult
 }
 
+// PROJECT_SPEC.md Section 5 originally put propType/description/line
+// directly on `SuperBowlProp` alongside userId/pick/stake — but that would
+// mean 5 users betting on the SAME prop (e.g. the same coin toss) each
+// need their own copy of the prop's description/line, with no single
+// source of truth for "what is this prop, and what's its line." Split
+// during build (decided with Stephen, 2026-09-07) to mirror the
+// games/picks pattern: admins create ONE PropDefinition per prop, and each
+// user's individual pick against it is a separate SuperBowlProp
+// referencing it by id.
+export interface PropDefinition {
+  id: string
+  weekId: string // the Super Bowl week
+  propType: string // free text/flexible, e.g. "coinToss", "passingYards"
+  description: string // e.g. "Sam Darnold Passing Yards"
+  line: number | null // null for something like coin toss
+}
+
 export interface SuperBowlProp {
   id: string
   userId: string
-  propType: string // free text, e.g. "coinToss", "passingYards"
-  description: string // e.g. "Sam Darnold Passing Yards"
-  line: number | null // null for something like coin toss
-  pick: string
+  propDefinitionId: string
+  pick: string // the side/answer this user chose, e.g. "Heads" or "Over"
   stake: number
   result: PickResult
 }

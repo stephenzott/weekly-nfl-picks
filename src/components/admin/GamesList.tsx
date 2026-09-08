@@ -2,9 +2,10 @@ import type { Game } from '../../types'
 
 interface GamesListProps {
   games: Game[]
+  onEdit: (gameId: string) => void
 }
 
-export function GamesList({ games }: GamesListProps) {
+export function GamesList({ games, onEdit }: GamesListProps) {
   if (games.length === 0) {
     return <p>No games added yet for this week.</p>
   }
@@ -18,6 +19,9 @@ export function GamesList({ games }: GamesListProps) {
           <th>Kickoff</th>
           <th>Spread</th>
           <th>Total</th>
+          <th>Score</th>
+          <th>Status</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -37,6 +41,15 @@ export function GamesList({ games }: GamesListProps) {
                 : '—'}
             </td>
             <td>{game.total ?? '—'}</td>
+            <td>
+              {game.finalScore
+                ? `${game.awayTeam} ${game.finalScore.away} - ${game.finalScore.home} ${game.homeTeam}`
+                : '—'}
+            </td>
+            <td>{game.status}</td>
+            <td>
+              <button onClick={() => onEdit(game.id)}>Edit</button>
+            </td>
           </tr>
         ))}
       </tbody>

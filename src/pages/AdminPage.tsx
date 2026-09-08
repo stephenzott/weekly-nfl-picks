@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { AddGameForm } from '../components/admin/AddGameForm'
 import { AddWeekForm } from '../components/admin/AddWeekForm'
+import { EditGameForm } from '../components/admin/EditGameForm'
 import { GamesList } from '../components/admin/GamesList'
+import { PropDefinitionsSection } from '../components/admin/PropDefinitionsSection'
+import { SeasonWinTotalsSection } from '../components/admin/SeasonWinTotalsSection'
 import { useGamesForWeek } from '../hooks/useGamesForWeek'
 import { useWeeks } from '../hooks/useWeeks'
 
@@ -9,6 +12,8 @@ export function AdminPage() {
   const weeks = useWeeks()
   const [selectedWeekId, setSelectedWeekId] = useState<string | null>(null)
   const games = useGamesForWeek(selectedWeekId)
+  const [editingGameId, setEditingGameId] = useState<string | null>(null)
+  const editingGame = games.find((g) => g.id === editingGameId)
 
   return (
     <div>
@@ -23,7 +28,10 @@ export function AdminPage() {
         Week{' '}
         <select
           value={selectedWeekId ?? ''}
-          onChange={(e) => setSelectedWeekId(e.target.value || null)}
+          onChange={(e) => {
+            setSelectedWeekId(e.target.value || null)
+            setEditingGameId(null)
+          }}
         >
           <option value="">— Select a week —</option>
           {weeks.map((week) => (
@@ -37,9 +45,30 @@ export function AdminPage() {
       {selectedWeekId && (
         <>
           <AddGameForm weekId={selectedWeekId} />
-          <GamesList games={games} />
+          {editingGame && (
+            // `key` forces a fresh remount (and fresh useState initializers)
+            // when switching which game is being edited — without it,
+            // React reuses the same EditGameForm instance and its
+            // init-once form state, so clicking Edit on a different game
+            // would keep showing (and, on save, overwrite the wrong game
+            // with) the PREVIOUS game's data. Same failure mode as the key
+            // on PickSlot in WeekPicks.tsx, same fix.
+            <EditGameForm key={editingGame.id} game={editingGame} onDone={() => setEditingGameId(null)} />
+          )}
+          <GamesList games={games} onEdit={setEditingGameId} />
+
+          <hr />
+          {/* Props are only relevant during Super Bowl week, but there's no
+              rigid "this week IS the Super Bowl" flag in the data model —
+              any week can have props added, same as any week can have a
+              Bonus game (Section 4.1). It's on the admin to only use this
+              during the actual Super Bowl week. */}
+          <PropDefinitionsSection weekId={selectedWeekId} />
         </>
       )}
+
+      <hr />
+      <SeasonWinTotalsSection />
     </div>
   )
 }

@@ -151,8 +151,11 @@ Collections (each a set of documents/"cards" with the following fields):
 **`seasonWinTotals`**
 - `id`, `userId`, `team`, `line` (e.g. 9.5), `side` (`"over"` | `"under"`), `stake` (always 20), `actualWins` (filled in at season end), `result`
 
+**`propDefinitions`** — **implementation note, decided during build (2026-09-07):** split out of `superBowlProps` below. The prop itself (what it is, its line) needs to be a single shared record that all 5 users pick against — putting propType/description/line directly on each user's pick (as originally spec'd) would mean 5 copies of the same prop's details with no single source of truth, and no way to correct a typo'd line in one place. Mirrors the `games`/`picks` split.
+- `id`, `weekId` (the Super Bowl week), `propType` (free text/flexible, e.g. `"coinToss"`, `"passingYards"`), `description` (e.g. "Sam Darnold Passing Yards"), `line` (number or null for coin toss)
+
 **`superBowlProps`**
-- `id`, `userId`, `propType` (free text/flexible, e.g. `"coinToss"`, `"passingYards"`), `description` (e.g. "Sam Darnold Passing Yards"), `line` (number or null for coin toss), `pick`, `stake`, `result`
+- `id`, `userId`, `propDefinitionId` (reference to a `propDefinitions` doc), `pick` (the side/answer this user chose, e.g. "Heads" or "Over"), `stake`, `result`
 
 ---
 

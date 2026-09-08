@@ -1,4 +1,4 @@
-import { addDoc, collection, onSnapshot, query, where } from 'firebase/firestore'
+import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase'
 import type { Game } from '../types'
 
@@ -28,4 +28,15 @@ export function listenGamesForWeek(
 export async function addGame(game: Omit<Game, 'id'>): Promise<string> {
   const docRef = await addDoc(gamesCollection, game)
   return docRef.id
+}
+
+// Partial update — used for both correcting a game's details (kickoff,
+// teams, spread, total) and for recording a final score. `lineSource` is
+// deliberately part of the updatable fields (not just set once at
+// creation): PROJECT_SPEC.md Section 4.7 has the admin's "Fetch Odds"
+// button and manual edits both writing to the same spread/total fields, so
+// whichever one touched them last should be reflected here for
+// transparency/debugging, per the spec's own reasoning for the field.
+export async function updateGame(gameId: string, updates: Partial<Omit<Game, 'id'>>): Promise<void> {
+  await updateDoc(doc(db, 'games', gameId), updates)
 }
