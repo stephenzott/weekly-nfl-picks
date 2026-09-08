@@ -53,6 +53,23 @@ export function listenPicksForWeek(
   })
 }
 
+// Subscribes to EVERY pick across every week (no filter) — used by the
+// standings page (src/lib/standings.ts), which needs to sum profit/loss
+// across the whole season, not just one week at a time. A whole season's
+// worth of picks across 5 users is still a tiny amount of data (a few
+// hundred documents at most), so fetching all of them client-side and
+// grouping by week in JS is simpler than trying to run a separate query per
+// week.
+export function listenAllPicks(callback: (picks: Pick[]) => void): () => void {
+  return onSnapshot(picksCollection, (snapshot) => {
+    const picks = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Pick, 'id'>),
+    }))
+    callback(picks)
+  })
+}
+
 export async function savePick(pick: Omit<Pick, 'id'>): Promise<void> {
   const id = pickDocId(pick)
   // `setDoc` with `merge: true` creates the document if it doesn't exist yet,

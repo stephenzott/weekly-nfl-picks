@@ -25,6 +25,21 @@ export function listenGamesForWeek(
   })
 }
 
+// Subscribes to every game across every week (no filter) — used by the
+// standings page (src/pages/StandingsPage.tsx), which needs to settle
+// picks from ANY week whenever anyone views it (see the comment on
+// listenAllPicks in src/lib/picks.ts for the same "whole collection is
+// still tiny" reasoning).
+export function listenAllGames(callback: (games: Game[]) => void): () => void {
+  return onSnapshot(gamesCollection, (snapshot) => {
+    const games = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Game, 'id'>),
+    }))
+    callback(games)
+  })
+}
+
 export async function addGame(game: Omit<Game, 'id'>): Promise<string> {
   const docRef = await addDoc(gamesCollection, game)
   return docRef.id
