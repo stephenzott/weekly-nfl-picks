@@ -2,16 +2,19 @@ import { useState } from 'react'
 import { AddGameForm } from '../components/admin/AddGameForm'
 import { AddWeekForm } from '../components/admin/AddWeekForm'
 import { EditGameForm } from '../components/admin/EditGameForm'
+import { FetchOddsButton } from '../components/admin/FetchOddsButton'
 import { GamesList } from '../components/admin/GamesList'
 import { PropDefinitionsSection } from '../components/admin/PropDefinitionsSection'
 import { SeasonWinTotalsSection } from '../components/admin/SeasonWinTotalsSection'
 import { useGamesForWeek } from '../hooks/useGamesForWeek'
+import { usePicksForWeek } from '../hooks/usePicksForWeek'
 import { useWeeks } from '../hooks/useWeeks'
 
 export function AdminPage() {
   const weeks = useWeeks()
   const [selectedWeekId, setSelectedWeekId] = useState<string | null>(null)
   const games = useGamesForWeek(selectedWeekId)
+  const picksInWeek = usePicksForWeek(selectedWeekId)
   const [editingGameId, setEditingGameId] = useState<string | null>(null)
   const editingGame = games.find((g) => g.id === editingGameId)
   const selectedWeek = weeks.find((w) => w.id === selectedWeekId)
@@ -61,6 +64,7 @@ export function AdminPage() {
               onDone={() => setEditingGameId(null)}
             />
           )}
+          <FetchOddsButton games={games} picksInWeek={picksInWeek} />
           <GamesList games={games} onEdit={setEditingGameId} />
 
           <hr />
