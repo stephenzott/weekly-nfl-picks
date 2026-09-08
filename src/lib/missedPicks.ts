@@ -45,7 +45,9 @@ export async function backfillMissedPicksForWeek(
   // playoff slots are always "fixedGame" (same shape SNF/MNF/Bonus already
   // use).
   const slots =
-    week.type === 'playoff' ? computeSlotsForPlayoffWeek(games) : computeSlotsForRegularWeek(games)
+    week.type === 'playoff'
+      ? computeSlotsForPlayoffWeek(games)
+      : computeSlotsForRegularWeek(games, week.highSpreadGameId)
 
   for (const user of users) {
     const myPicks = allPicks.filter((p) => p.userId === user.id)

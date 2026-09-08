@@ -101,7 +101,9 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
   // structure — every game IS its own required pick, unlike the regular
   // season's AM/PM/SNF/MNF/WildCard/HighSpread/Bonus roles.
   const slots =
-    week.type === 'playoff' ? computeSlotsForPlayoffWeek(games) : computeSlotsForRegularWeek(games)
+    week.type === 'playoff'
+      ? computeSlotsForPlayoffWeek(games)
+      : computeSlotsForRegularWeek(games, week.highSpreadGameId)
 
   // Props don't have their own kickoff time — PROJECT_SPEC.md Section 4.5
   // ties them to "that week's spread pick," and in real usage a props week

@@ -1,9 +1,11 @@
 import {
   addDoc,
   collection,
+  doc,
   onSnapshot,
   orderBy,
   query,
+  updateDoc,
 } from 'firebase/firestore'
 import { db } from './firebase'
 import type { Week } from '../types'
@@ -34,4 +36,14 @@ export async function addWeek(
 ): Promise<string> {
   const docRef = await addDoc(weeksCollection, { ...week, order })
   return docRef.id
+}
+
+// Admin-only action (2026-09-08): designates which WildCardPool game is
+// this week's "Highest Spread" pick, replacing the old auto-computed
+// version. updateDoc only sends this one field, but Firestore security
+// rules validate the FULL resulting document after the merge — so this
+// doesn't need to (and per firestore.rules' own hasAll-not-hasOnly
+// tradeoff, must not) resend label/type/budget/order.
+export async function setHighSpreadGame(weekId: string, gameId: string | null): Promise<void> {
+  await updateDoc(doc(weeksCollection, weekId), { highSpreadGameId: gameId })
 }

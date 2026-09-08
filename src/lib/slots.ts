@@ -2,45 +2,43 @@ import type { Game, Pick, PickType } from '../types'
 
 // Describes one row the user needs to fill out on the Picks screen.
 //
-// - "poolChoice" slots (AM, PM, WildCard) offer a handful of candidate
-//   games and the user picks ONE of them, per PROJECT_SPEC.md Section 4.1
-//   items 1, 2, and 5.
-// - "fixedGame" slots are already pinned to one specific game — either
-//   because there's naturally only one such game that week (SNF, MNF), the
-//   admin's bonus game IS the pick (Bonus), or the game was determined by
-//   scanning the whole slate rather than by user choice (HighSpread, per
-//   item 6 — "calculated on the fly", not chosen by the user).
+// - "poolChoice" (WildCard only, as of 2026-09-08) offers a handful of
+//   candidate games and the user picks ONE of them — the one slot where
+//   different users can end up betting on different physical games.
+// - "fixedGame" slots are already pinned to one specific game, the SAME
+//   one for every user: AM/PM/SNF/MNF are each a single game the admin
+//   explicitly designates (no more per-user choice of which 1pm/4pm game
+//   to bet, per Stephen 2026-09-08), the admin's bonus game IS the pick
+//   (Bonus), and HighSpread is whichever WildCard-eligible game the admin
+//   has manually flagged via Week.highSpreadGameId (also changed
+//   2026-09-08 — previously auto-computed by scanning for the largest
+//   spread; now the admin picks it, informed by the auto-fetched spread
+//   data but with final say, since an auto-picked line could be stale or
+//   wrong).
 export type Slot =
   | { kind: 'poolChoice'; pickType: PickType; label: string; candidates: Game[] }
   | { kind: 'fixedGame'; pickType: PickType; label: string; game: Game }
 
-// Scans every game in the week (regardless of slot) for the one with the
-// largest spread by absolute value. This is deliberately NOT stored
-// anywhere — PROJECT_SPEC.md Section 4.1 item 6 explicitly calls for
-// computing it fresh every time, since a stored flag would go stale if a
-// line gets corrected after entry.
-function findHighSpreadGame(games: Game[]): Game | null {
-  let best: Game | null = null
-  for (const game of games) {
-    if (!game.spread) continue
-    if (!best || !best.spread || game.spread.line > best.spread.line) {
-      best = game
-    }
-  }
-  return best
+// Sorts WildCard-eligible games by spread magnitude, largest first —
+// purely a display convenience for the admin's HighSpread picker UI (see
+// HighSpreadPicker.tsx) so the current numeric leader is easy to spot.
+// Games with no spread yet sort last. This does NOT decide the pick
+// anymore — that's now a manual admin choice (Week.highSpreadGameId).
+export function sortBySpreadDesc(candidates: Game[]): Game[] {
+  return [...candidates].sort((a, b) => (b.spread?.line ?? -1) - (a.spread?.line ?? -1))
 }
 
-export function computeSlotsForRegularWeek(games: Game[]): Slot[] {
+export function computeSlotsForRegularWeek(games: Game[], highSpreadGameId: string | null | undefined): Slot[] {
   const slots: Slot[] = []
 
-  const amGames = games.filter((g) => g.slot === 'AM')
-  if (amGames.length > 0) {
-    slots.push({ kind: 'poolChoice', pickType: 'AM', label: '1pm Game', candidates: amGames })
+  const amGame = games.find((g) => g.slot === 'AM')
+  if (amGame) {
+    slots.push({ kind: 'fixedGame', pickType: 'AM', label: '1pm Game', game: amGame })
   }
 
-  const pmGames = games.filter((g) => g.slot === 'PM')
-  if (pmGames.length > 0) {
-    slots.push({ kind: 'poolChoice', pickType: 'PM', label: '4pm Game', candidates: pmGames })
+  const pmGame = games.find((g) => g.slot === 'PM')
+  if (pmGame) {
+    slots.push({ kind: 'fixedGame', pickType: 'PM', label: '4pm Game', game: pmGame })
   }
 
   const snfGame = games.find((g) => g.slot === 'SNF')
@@ -53,7 +51,17 @@ export function computeSlotsForRegularWeek(games: Game[]): Slot[] {
     slots.push({ kind: 'fixedGame', pickType: 'MNF', label: 'Monday Night Football', game: mnfGame })
   }
 
-  const wildCardGames = games.filter((g) => g.slot === 'WildCardPool')
+  // Per Stephen (2026-09-08): HighSpread is carved OUT of the WildCard
+  // pool — whichever WildCardPool game the admin has flagged via
+  // Week.highSpreadGameId becomes the HighSpread pick, and everything
+  // else left in the pool is the actual WildCard candidate list. This
+  // guarantees the two picks can never land on the same physical game.
+  // Bonus games are deliberately NOT part of this split: they're already
+  // their own separate required pick per game (below).
+  const wildCardPoolGames = games.filter((g) => g.slot === 'WildCardPool')
+  const highSpreadGame = wildCardPoolGames.find((g) => g.id === highSpreadGameId) ?? null
+  const wildCardGames = wildCardPoolGames.filter((g) => g.id !== highSpreadGame?.id)
+
   if (wildCardGames.length > 0) {
     slots.push({
       kind: 'poolChoice',
@@ -63,7 +71,6 @@ export function computeSlotsForRegularWeek(games: Game[]): Slot[] {
     })
   }
 
-  const highSpreadGame = findHighSpreadGame(games)
   if (highSpreadGame) {
     slots.push({
       kind: 'fixedGame',
@@ -120,16 +127,17 @@ export function computeSlotsForPlayoffWeek(games: Game[]): Slot[] {
 // also need a gameId match:
 //  - Bonus is repeatable: multiple bonus games all share pickType "Bonus",
 //    so pickType alone can't tell them apart.
-//  - HighSpread's underlying game can change out from under it: it's
-//    recomputed fresh every render (PROJECT_SPEC.md Section 4.1 item 6),
-//    so if an admin corrects a line and a different game becomes the
-//    week's highest spread, a pick (real or backfilled) against the OLD
-//    high-spread game must NOT be treated as "already answered" for the
-//    NEW one — otherwise a user could get permanently stuck showing a
-//    stale default-loss pick for a slot whose real deadline hasn't
-//    arrived yet. Requiring gameId to match means the old pick just
-//    becomes invisible to the new slot (harmless leftover data) rather
-//    than blocking it.
+//  - HighSpread's underlying game can change out from under it: the admin
+//    can re-point Week.highSpreadGameId at a different WildCardPool game
+//    at any time (PROJECT_SPEC.md Section 4.1 item 6), so a pick (real or
+//    backfilled) against the OLD high-spread game must NOT be treated as
+//    "already answered" for the NEW one — otherwise a user could get
+//    permanently stuck showing a stale default-loss pick for a slot whose
+//    real deadline hasn't arrived yet. Requiring gameId to match means the
+//    old pick just becomes invisible to the new slot (harmless leftover
+//    data) rather than blocking it. HighSpreadPicker.tsx locks the admin's
+//    selector once any real pick exists against the CURRENT selection, to
+//    keep this "invisible leftover" case rare rather than routine.
 // Playoff joins Bonus/HighSpread in this list for the same repeatable-slot
 // reason as Bonus: pickType "Playoff" is shared across every game in the
 // week (see computeSlotsForPlayoffWeek above), so pickType alone can't

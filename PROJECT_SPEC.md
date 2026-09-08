@@ -48,14 +48,16 @@ Note: `databaseURL` is for the Realtime Database product, which we are **not** u
 
 Each week, every user makes picks against the spread for exactly these slots:
 
-1. **1pm ET game** — user chooses which 1pm game to pick from that week's 1pm slate
-2. **4pm ET game** — same, from the 4pm slate
-3. **Sunday Night Football** — the week's SNF game
-4. **Monday Night Football** — the week's MNF game
-5. **Wild Card game** — user picks any one game from a shared pool of "leftover" games not already covered by slots 1–4. Multiple users CAN pick the same wild-card game — no requirement that they differ.
-6. **Highest Spread** — the system automatically identifies whichever single game that week has the largest spread (by absolute value), across the ENTIRE week's slate (marquee games + wild-card pool games + any bonus games). This is calculated on the fly by scanning that week's games — do not store it as a static flag, since spreads could be corrected/edited after entry and a stored flag could go stale.
+1. **1pm ET game** — the SAME game for every user, one specific game the admin designates by tagging it slot `AM` for the week. [Implementation note: changed 2026-09-08 — originally a per-user choice from that week's 1pm slate; Stephen changed this so all 5 users bet the identical marquee games each week.]
+2. **4pm ET game** — same, tagged slot `PM`.
+3. **Sunday Night Football** — the week's game tagged slot `SNF`.
+4. **Monday Night Football** — the week's game tagged slot `MNF`. If a week happens to have two MNF games (a doubleheader), the admin tags only ONE of them `MNF`; the other is simply left as a WildCardPool game.
+5. **Wild Card game** — the one slot where users genuinely choose independently: each user picks any one game from a shared pool of "leftover" `WildCardPool`-tagged games not already claimed by slot 6 below. Multiple users CAN pick the same wild-card game — no requirement that they differ.
+6. **Highest Spread** — an admin manually designates which single `WildCardPool` game counts as the week's "Highest Spread" pick (`Week.highSpreadGameId`), informed by the spread/total numbers already auto-fetched via Fetch Odds. That one game is then REMOVED from the Wild Card pool (slot 5) — the two picks must never be able to land on the same physical game. [Implementation note: changed 2026-09-08 — originally auto-computed on the fly as whichever leftover game had the largest absolute spread; Stephen changed this to a manual admin choice so a stale or wrong auto-fetched line can't silently dictate a required pick. The underlying spread/total numbers are still fetched automatically — only the SELECTION of which game is "the" HighSpread game is manual.]
 
-**Bonus slots:** Some weeks have extra one-off games beyond the usual schedule (an international game, a Saturday game, a Thanksgiving/Christmas game, etc.). Admins should be able to add an arbitrary number of extra "bonus" slots in any given week. These share the same $120 weekly budget — they don't get separate money.
+A regular season week is capped at 6 total games, full stop — including any Bonus games (below). Enforced in the Admin UI (`AddGameForm`), not in Firestore rules (see Section 3 on the app's no-auth/honor-system approach to validation — this is a workflow guardrail, not a security boundary). [Implementation note: added 2026-09-08 per Stephen.]
+
+**Bonus slots:** Some weeks have extra one-off games beyond the usual schedule (an international game, a Saturday game, a Thanksgiving/Christmas game, etc.). Admins can add extra "bonus" slots in any given week, up to the 6-game cap above — they're each their own separate required pick, untouched by the WildCard/HighSpread split, and share the same $120 weekly budget rather than getting separate money. [Implementation note: changed 2026-09-08 — originally "an arbitrary number" of bonus slots; now bounded by the same 6-game cap as every other game in a regular season week.]
 
 ### 4.2 Weekly Picks — Playoffs
 

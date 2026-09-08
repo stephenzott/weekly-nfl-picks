@@ -4,6 +4,7 @@ import { AddWeekForm } from '../components/admin/AddWeekForm'
 import { EditGameForm } from '../components/admin/EditGameForm'
 import { FetchOddsButton } from '../components/admin/FetchOddsButton'
 import { GamesList } from '../components/admin/GamesList'
+import { HighSpreadPicker } from '../components/admin/HighSpreadPicker'
 import { PropDefinitionsSection } from '../components/admin/PropDefinitionsSection'
 import { SeasonWinTotalsSection } from '../components/admin/SeasonWinTotalsSection'
 import { useGamesForWeek } from '../hooks/useGamesForWeek'
@@ -48,7 +49,7 @@ export function AdminPage() {
 
       {selectedWeekId && selectedWeek && (
         <>
-          <AddGameForm weekId={selectedWeekId} weekType={selectedWeek.type} />
+          <AddGameForm weekId={selectedWeekId} weekType={selectedWeek.type} existingGames={games} />
           {editingGame && (
             // `key` forces a fresh remount (and fresh useState initializers)
             // when switching which game is being edited — without it,
@@ -65,6 +66,9 @@ export function AdminPage() {
             />
           )}
           <FetchOddsButton games={games} picksInWeek={picksInWeek} />
+          {selectedWeek.type === 'regular' && (
+            <HighSpreadPicker week={selectedWeek} games={games} picksInWeek={picksInWeek} />
+          )}
           <GamesList games={games} onEdit={setEditingGameId} />
 
           <hr />

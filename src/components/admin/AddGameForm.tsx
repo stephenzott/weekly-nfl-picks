@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore'
 import { useState } from 'react'
 import { addGame } from '../../lib/games'
-import type { GameSlot, WeekType } from '../../types'
+import type { Game, GameSlot, WeekType } from '../../types'
 
 const SLOTS: GameSlot[] = [
   'AM',
@@ -13,12 +13,21 @@ const SLOTS: GameSlot[] = [
   'Playoff',
 ]
 
+// Per Stephen (2026-09-08): a regular season week is capped at 6 total
+// games, full stop — including Bonus games. Playoff weeks are exempt
+// entirely (every game on that week's slate needs its own pick, however
+// many that is).
+const MAX_REGULAR_SEASON_GAMES = 6
+
 interface AddGameFormProps {
   weekId: string
   weekType: WeekType
+  existingGames: Game[]
 }
 
-export function AddGameForm({ weekId, weekType }: AddGameFormProps) {
+export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProps) {
+  const cappedGamesCount = existingGames.length
+  const atMaxGames = weekType === 'regular' && cappedGamesCount >= MAX_REGULAR_SEASON_GAMES
   const [slot, setSlot] = useState<GameSlot>('AM')
   // PROJECT_SPEC.md Section 4.2: playoff weeks have no AM/PM/SNF/etc. roles
   // — every game IS a "Playoff" pick. Per Stephen (2026-09-07): computed
@@ -43,7 +52,7 @@ export function AddGameForm({ weekId, weekType }: AddGameFormProps) {
   const [total, setTotal] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const canSubmit = homeTeam.trim() && awayTeam.trim() && kickoffLocal
+  const canSubmit = Boolean(homeTeam.trim() && awayTeam.trim() && kickoffLocal) && !atMaxGames
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -83,6 +92,13 @@ export function AddGameForm({ weekId, weekType }: AddGameFormProps) {
   return (
     <form onSubmit={handleSubmit}>
       <h3>Add a Game</h3>
+      {atMaxGames && (
+        <p style={{ color: 'red' }}>
+          This week already has {cappedGamesCount} games — regular season weeks are capped at{' '}
+          {MAX_REGULAR_SEASON_GAMES} total (including Bonus games). Edit or remove an existing game
+          instead of adding another.
+        </p>
+      )}
       <div>
         {weekType === 'playoff' ? (
           <label>Slot: Playoff (every game in a playoff week requires a pick)</label>

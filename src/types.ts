@@ -17,6 +17,14 @@ export interface Week {
   label: string // e.g. "Week 1", "Wild Card", "Super Bowl"
   type: WeekType
   budget: number // almost always 120
+  // Added 2026-09-08: which WildCardPool game the admin has manually
+  // designated as this week's "Highest Spread" pick. Previously computed
+  // automatically (largest |spread| among WildCardPool games) — changed
+  // per Stephen so the admin has final say, informed by the auto-fetched
+  // spread/total numbers rather than blindly trusting them. null/undefined
+  // until the admin picks one; see computeSlotsForRegularWeek in
+  // src/lib/slots.ts.
+  highSpreadGameId?: string | null
 }
 
 export type GameSlot =

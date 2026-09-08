@@ -56,7 +56,13 @@ service cloud.firestore {
         && data.label is string && data.label.size() > 0
         && data.type in ['regular', 'playoff']
         && data.budget is number && data.budget > 0
-        && data.order is number;
+        && data.order is number
+        // highSpreadGameId (added 2026-09-08) is deliberately NOT in
+        // hasAll above — existing week docs predate it. Only validated
+        // when present, per this file's hasAll-not-hasOnly tradeoff.
+        && (!('highSpreadGameId' in data)
+            || data.highSpreadGameId == null
+            || (data.highSpreadGameId is string && data.highSpreadGameId.size() > 0));
     }
     match /weeks/{weekId} {
       allow read: if true;
