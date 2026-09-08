@@ -75,7 +75,7 @@ No fixed slot structure. Users pick every single game on that week's playoff sla
 
 ### 4.4 Season Win Totals (Preseason feature)
 
-Before the season starts, each user makes exactly 4 bets on individual teams' regular-season win totals (over/under), at a flat $20 per bet (not flexible — always exactly 4 bets, always $20 each). Example from last year's data: "Vikings 9.5 (Under), $20." This is a separate, one-time-per-season feature, tracked independently from the weekly $120 pick budget. Settlement happens at the end of the season once win totals are final.
+Before the season starts, each user makes exactly 4 bets on individual teams' regular-season win totals (over/under). **Implementation note, changed during build (Stephen, 2026-09-08):** originally a flat $20 per bet; changed to a $100 total freely split across the 4 required bets (same "user allocates, $10 minimum per bet" model as the weekly $120 picks budget), rather than a fixed amount per bet. This is a separate, one-time-per-season feature, tracked independently from the weekly $120 pick budget. Settlement happens at the end of the season once win totals are final — an admin enters each bet's real final win count and the app computes win/loss/push automatically (task #10).
 
 ### 4.5 Super Bowl Props (Super Bowl week feature)
 
@@ -86,6 +86,8 @@ During Super Bowl week only, in addition to the normal spread pick on the game i
 - Player receiving yards (over/under a line)
 
 These draw from the same $120 weekly budget as that week's spread pick (see 4.2). The specific props/players will vary year to year and should be addable by an admin (similar to adding a game, but for a prop instead) — build this as a flexible "add a prop bet" admin feature rather than hardcoding specific stat categories, since the exact props of interest may change.
+
+**Implementation note, task #10 (Stephen, 2026-09-08):** every prop needs a settleable shape — either a numeric `line` (an Over/Under stat prop) or an admin-defined fixed list of `choices` (e.g. "Heads, Tails" for a coin toss), never free text for the user's pick itself, so answers stay consistent enough to settle automatically. Both shapes auto-settle from ONE admin entry on the shared prop definition (the real stat value, or the correct choice) — applying to every user's pick against it — rather than toggling each individual pick by hand. Props lock/reveal together, tied to the earliest-kickoff game in their week (in practice, the single Super Bowl game), not a deadline of their own. Props share the week's $120 budget with the game pick(s) via the exact same reserve-math pattern as regular/playoff slots.
 
 ### 4.6 Visibility Rule
 
@@ -150,10 +152,13 @@ Collections (each a set of documents/"cards" with the following fields):
 - `isDefaultLoss`: boolean (true if this was auto-generated from a missed pick)
 
 **`seasonWinTotals`**
-- `id`, `userId`, `team`, `line` (e.g. 9.5), `side` (`"over"` | `"under"`), `stake` (always 20), `actualWins` (filled in at season end), `result`
+- `id`, `userId`, `team`, `line` (e.g. 9.5), `side` (`"over"` | `"under"`), `stake` (number, min 10 — see 4.4's implementation note on the $100-split change), `actualWins` (filled in at season end), `result`
 
 **`propDefinitions`** — **implementation note, decided during build (2026-09-07):** split out of `superBowlProps` below. The prop itself (what it is, its line) needs to be a single shared record that all 5 users pick against — putting propType/description/line directly on each user's pick (as originally spec'd) would mean 5 copies of the same prop's details with no single source of truth, and no way to correct a typo'd line in one place. Mirrors the `games`/`picks` split.
 - `id`, `weekId` (the Super Bowl week), `propType` (free text/flexible, e.g. `"coinToss"`, `"passingYards"`), `description` (e.g. "Sam Darnold Passing Yards"), `line` (number or null for coin toss)
+- `choices` (string array or null — **implementation note, task #10:** the fixed pick-list for a no-line prop, e.g. `["Heads", "Tails"]`; always null when `line` is set)
+- `actualValue` (number or null — **implementation note, task #10:** the real final stat, for a lined prop; drives auto-settlement)
+- `correctChoice` (string or null — **implementation note, task #10:** the real correct answer, for a choices prop; drives auto-settlement)
 
 **`superBowlProps`**
 - `id`, `userId`, `propDefinitionId` (reference to a `propDefinitions` doc), `pick` (the side/answer this user chose, e.g. "Heads" or "Over"), `stake`, `result`

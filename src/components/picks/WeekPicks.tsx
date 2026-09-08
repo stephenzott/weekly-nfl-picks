@@ -2,27 +2,59 @@ import { useEffect } from 'react'
 import { useGamesForWeek } from '../../hooks/useGamesForWeek'
 import { useNow } from '../../hooks/useNow'
 import { usePicksForWeek } from '../../hooks/usePicksForWeek'
+import { usePropDefinitionsForWeek } from '../../hooks/usePropDefinitionsForWeek'
+import { useSuperBowlProps } from '../../hooks/useSuperBowlProps'
 import { useUsers } from '../../hooks/useUsers'
 import { MIN_STAKE } from '../../lib/constants'
+import { hasKickedOff } from '../../lib/gameTiming'
 import { backfillMissedPicksForWeek } from '../../lib/missedPicks'
-import { settleWeekPicks } from '../../lib/settleWeek'
-import { computeSlotsForPlayoffWeek, computeSlotsForRegularWeek, findExistingPick } from '../../lib/slots'
-import type { Week } from '../../types'
+import { settleWeekPicks, settleWeekProps } from '../../lib/settleWeek'
+import { computeSlotsForPlayoffWeek, computeSlotsForRegularWeek, findExistingPick, type Slot } from '../../lib/slots'
+import type { Pick, PropDefinition, SuperBowlProp, Week } from '../../types'
 import { BudgetSummary } from './BudgetSummary'
 import { PickSlot } from './PickSlot'
+import { PropPick } from './PropPick'
 import { RevealedPicks } from './RevealedPicks'
+import { RevealedProps } from './RevealedProps'
 
 interface WeekPicksProps {
   week: Week
   userId: string
 }
 
+// One shared shape for "a required thing this user can stake money on this
+// week" — a game-pick slot or a prop — so the $120 budget/reserve math
+// (see the block below the settlement effects) can be computed ONCE across
+// both, instead of two independent calculations that could each think they
+// own the whole budget. PROJECT_SPEC.md Section 4.5 is explicit that props
+// draw from the SAME pool as that week's game pick(s), not a separate one.
+type BudgetEntry =
+  | { kind: 'pick'; key: string; slot: Slot; existingPick: Pick | undefined }
+  | { kind: 'prop'; key: string; def: PropDefinition; existingProp: SuperBowlProp | undefined }
+
+function committedStake(entry: BudgetEntry): number {
+  return entry.kind === 'pick' ? (entry.existingPick?.spreadStake ?? 0) : (entry.existingProp?.stake ?? 0)
+}
+
+function isFilled(entry: BudgetEntry): boolean {
+  return entry.kind === 'pick' ? Boolean(entry.existingPick) : Boolean(entry.existingProp)
+}
+
 export function WeekPicks({ week, userId }: WeekPicksProps) {
   const games = useGamesForWeek(week.id)
   const allPicks = usePicksForWeek(week.id)
+  const propDefs = usePropDefinitionsForWeek(week.id)
+  const [allPropsEverywhere] = useSuperBowlProps()
   const users = useUsers()
   const myPicks = allPicks.filter((p) => p.userId === userId)
   const now = useNow()
+
+  // useSuperBowlProps subscribes to the WHOLE collection (see its own
+  // comment for why) — narrow down to just this week's props before doing
+  // anything else with them.
+  const weekPropDefIds = new Set(propDefs.map((d) => d.id))
+  const weekProps = allPropsEverywhere.filter((p) => weekPropDefIds.has(p.propDefinitionId))
+  const myProps = weekProps.filter((p) => p.userId === userId)
 
   // PROJECT_SPEC.md Section 4.3: whenever anyone opens the app, scan for
   // missed picks and backfill $10 default losses. Per Stephen (2026-09-07):
@@ -52,6 +84,15 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
     settleWeekPicks(games, allPicks)
   }, [games, allPicks])
 
+  // Same self-healing pattern for Super Bowl Props (task #10).
+  useEffect(() => {
+    if (propDefs.length === 0) return
+    settleWeekProps(propDefs, weekProps)
+    // weekProps is derived fresh every render from allPropsEverywhere, so
+    // depend on the underlying subscription value instead — an inline
+    // array would never be reference-equal across renders and would loop.
+  }, [propDefs, allPropsEverywhere])
+
   if (games.length === 0) {
     return <p>No games have been added for this week yet — check the Admin tab.</p>
   }
@@ -62,57 +103,69 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
   const slots =
     week.type === 'playoff' ? computeSlotsForPlayoffWeek(games) : computeSlotsForRegularWeek(games)
 
-  // Computed once up front (rather than inline per slot below) because
-  // `reserveForOtherSlots` needs to know, for each slot, how many OF THE
-  // OTHER slots are still unpicked — which means every slot's existingPick
-  // has to already be known before any of them can compute their own
-  // reserve.
-  const slotEntries = slots.map((slot) => ({ slot, existingPick: findExistingPick(myPicks, slot) }))
+  // Props don't have their own kickoff time — PROJECT_SPEC.md Section 4.5
+  // ties them to "that week's spread pick," and in real usage a props week
+  // (Super Bowl) only ever has the one game. Locking/revealing on the
+  // EARLIEST kickoff among this week's games covers that case exactly, and
+  // degrades reasonably even in the unlikely event a props-bearing week
+  // ever had more than one game.
+  const earliestGame = games.reduce((earliest, g) =>
+    g.kickoffTime.toMillis() < earliest.kickoffTime.toMillis() ? g : earliest,
+  )
+  const propsLocked = hasKickedOff(earliestGame, now)
+
+  const slotEntries: BudgetEntry[] = slots.map((slot, i) => ({
+    kind: 'pick',
+    key: `pick-${slot.pickType}-${slot.kind === 'fixedGame' ? slot.game.id : i}`,
+    slot,
+    existingPick: findExistingPick(myPicks, slot),
+  }))
+  const propEntries: BudgetEntry[] = propDefs.map((def) => ({
+    kind: 'prop',
+    key: `prop-${def.id}`,
+    def,
+    existingProp: myProps.find((p) => p.propDefinitionId === def.id),
+  }))
+  // Combined once up front (rather than computed separately per section)
+  // because each entry's reserve needs to know how many of the OTHER
+  // entries — picks AND props together — are still unfilled.
+  const entries: BudgetEntry[] = [...slotEntries, ...propEntries]
+  const totalCommitted = entries.reduce((sum, e) => sum + committedStake(e), 0)
 
   // Regular season weeks always have exactly 6 fixed slots (well under
   // this), but a playoff week's slot count comes from however many games
-  // an admin adds — PROJECT_SPEC.md's own biggest example is Wild Card
-  // weekend's 6 games, but nothing stops an admin from adding more by
-  // mistake. If there are ever more required slots than the $120 budget
-  // can cover at the $10 minimum each, PickSlot's reserve logic (see
-  // reserveForOtherSlots below) ends up reserving the ENTIRE budget for
-  // "other slots," leaving every single pick — even at the $10 minimum —
-  // rejected as over budget. That's mathematically correct (there
-  // genuinely isn't enough budget for every required slot), but without
-  // this banner a user just sees a confusing per-slot error message with
-  // no explanation of why the whole week is stuck. Per Stephen
-  // (2026-09-08): surface it plainly instead.
-  const maxSupportableSlots = Math.floor(week.budget / MIN_STAKE)
-  const isOverBudget = slots.length > maxSupportableSlots
+  // an admin adds, and props add further required entries on top —
+  // PROJECT_SPEC.md's own biggest example is Wild Card weekend's 6 games,
+  // but nothing stops an admin from adding more by mistake, or a props
+  // week from ending up with more props than the leftover budget after
+  // the game pick(s) supports. If there are ever more required entries
+  // than the $120 budget can cover at the $10 minimum each, the reserve
+  // logic below ends up reserving the ENTIRE budget for "other entries,"
+  // leaving every single pick/prop — even at the $10 minimum — rejected as
+  // over budget. That's mathematically correct, but without this banner a
+  // user just sees a confusing per-entry error message with no
+  // explanation of why the whole week is stuck. Per Stephen (2026-09-08):
+  // surface it plainly instead.
+  const maxSupportableEntries = Math.floor(week.budget / MIN_STAKE)
+  const isOverBudget = entries.length > maxSupportableEntries
 
   return (
     <div>
       {isOverBudget && (
         <p style={{ color: 'red', fontWeight: 'bold' }}>
-          This week has {slots.length} required picks, but the ${week.budget} budget only
-          supports up to {maxSupportableSlots} at the ${MIN_STAKE} minimum stake each. No pick can
-          be saved until an admin removes some games from this week or increases its budget.
+          This week has {entries.length} required picks/props, but the ${week.budget} budget only
+          supports up to {maxSupportableEntries} at the ${MIN_STAKE} minimum stake each. No pick
+          can be saved until an admin removes some games/props from this week or increases its
+          budget.
         </p>
       )}
-      <BudgetSummary budget={week.budget} myPicks={myPicks} />
-      {slotEntries.map(({ slot, existingPick }, i) => {
-        // Everything this user has already staked on OTHER slots this
-        // week — i.e. the $120 budget minus whatever this specific slot
-        // already accounts for. PickSlot uses this to figure out how much
-        // headroom is left for its own stake, without double-counting the
-        // stake it's about to replace.
-        const otherPicksTotal = myPicks
-          .filter((p) => p.id !== existingPick?.id)
-          .reduce((sum, p) => sum + p.spreadStake, 0)
-        // $10 reserved for every OTHER slot this user hasn't picked yet —
-        // see PickSlot's reserveForOtherSlots prop doc for why this exists
-        // (Stephen, 2026-09-07: the $10-minimum and $120-cap rules would
-        // otherwise be able to strand a user with no legal stake left for
-        // a required slot).
-        const otherUnpickedSlots = slotEntries.filter(
-          (entry) => entry.slot !== slot && !entry.existingPick,
-        ).length
-        const reserveForOtherSlots = otherUnpickedSlots * MIN_STAKE
+      <BudgetSummary budget={week.budget} myPicks={myPicks} myProps={myProps} />
+      {slotEntries.map((entry) => {
+        if (entry.kind !== 'pick') return null // narrows the union for TypeScript below
+        const { slot, existingPick } = entry
+        const otherCommittedTotal = totalCommitted - committedStake(entry)
+        const otherUnfilled = entries.filter((e) => e !== entry && !isFilled(e)).length
+        const reserveForOtherEntries = otherUnfilled * MIN_STAKE
         return (
           <PickSlot
             // PickSlot only reads `existingPick` once, when it first mounts
@@ -125,24 +178,43 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
             // (falling back to "new" until it's loaded) forces React to
             // throw away and remount PickSlot the moment a matching pick
             // shows up, so it re-derives its initial state instead of
-            // silently staying blank. Bonus slots repeat the same pickType
-            // across different games, so pickType alone isn't a unique key
-            // either way — combine it with the game/candidate identity too.
-            key={`${slot.pickType}-${slot.kind === 'fixedGame' ? slot.game.id : i}-${existingPick?.id ?? 'new'}`}
+            // silently staying blank.
+            key={`${entry.key}-${existingPick?.id ?? 'new'}`}
             slot={slot}
             weekId={week.id}
             userId={userId}
             existingPick={existingPick}
             budget={week.budget}
-            otherPicksTotal={otherPicksTotal}
-            reserveForOtherSlots={reserveForOtherSlots}
+            otherPicksTotal={otherCommittedTotal}
+            reserveForOtherSlots={reserveForOtherEntries}
             now={now}
+          />
+        )
+      })}
+
+      {propEntries.map((entry) => {
+        if (entry.kind !== 'prop') return null
+        const { def, existingProp } = entry
+        const otherCommittedTotal = totalCommitted - committedStake(entry)
+        const otherUnfilled = entries.filter((e) => e !== entry && !isFilled(e)).length
+        const reserveForOtherEntries = otherUnfilled * MIN_STAKE
+        return (
+          <PropPick
+            key={`${entry.key}-${existingProp?.id ?? 'new'}`}
+            def={def}
+            userId={userId}
+            existingProp={existingProp}
+            budget={week.budget}
+            otherCommittedTotal={otherCommittedTotal}
+            reserveForOtherEntries={reserveForOtherEntries}
+            locked={propsLocked}
           />
         )
       })}
 
       <hr />
       <RevealedPicks games={games} allPicks={allPicks} now={now} />
+      <RevealedProps propDefs={propDefs} allProps={weekProps} locked={propsLocked} />
     </div>
   )
 }

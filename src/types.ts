@@ -102,7 +102,13 @@ export interface SeasonWinTotal {
   team: string
   line: number
   side: WinTotalSide
-  stake: number // always 20
+  // Changed during build (decided with Stephen, 2026-09-08): the spec
+  // originally called for a flat $20 per bet (4 bets, no allocation
+  // choice). Stephen changed this to a $100 total freely split across the
+  // 4 required bets, same "user allocates, $10 minimum per bet" model as
+  // the weekly $120 picks budget — see SEASON_WIN_TOTAL_BUDGET in
+  // src/lib/constants.ts.
+  stake: number
   actualWins: number | null
   result: PickResult
 }
@@ -122,13 +128,28 @@ export interface PropDefinition {
   propType: string // free text/flexible, e.g. "coinToss", "passingYards"
   description: string // e.g. "Sam Darnold Passing Yards"
   line: number | null // null for something like coin toss
+  // Task #10 (2026-09-08): when `line` is null, users need a fixed set of
+  // options to pick from rather than typing free text (avoids "Heads" vs
+  // "heads" vs "H" turning settlement into a guessing game) — e.g.
+  // ["Heads", "Tails"]. Always null when `line` is set, since a lined prop
+  // is implicitly an Over/Under choice.
+  choices: string[] | null
+  // The real-world outcome, entered once by an admin after the fact, used
+  // to auto-settle EVERY user's SuperBowlProp pick against this
+  // definition in one shot (same "settle once, applies to everyone"
+  // pattern as game scores) — see settlePropPick in src/lib/settlement.ts.
+  // Exactly one of these two is ever set, matching whichever of
+  // line/choices this definition uses; both start null and stay that way
+  // until the real result is known.
+  actualValue: number | null // the real final stat, when `line` is set
+  correctChoice: string | null // the real correct answer, when `choices` is set
 }
 
 export interface SuperBowlProp {
   id: string
   userId: string
   propDefinitionId: string
-  pick: string // the side/answer this user chose, e.g. "Heads" or "Over"
+  pick: string // the side/answer this user chose — one of the definition's `choices`, or "Over"/"Under" when it's a lined prop
   stake: number
   result: PickResult
 }

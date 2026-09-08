@@ -1,4 +1,16 @@
-import type { Game, Pick, PickResult } from '../types'
+import type { Game, Pick, PickResult, PropDefinition, SeasonWinTotal, SuperBowlProp } from '../types'
+
+// Shared over/under settlement math: push on an exact tie, otherwise win if
+// the side picked matches which way the actual value landed. Used by
+// settleTotal (game totals) below, and by settleSeasonWinTotal /
+// settlePropPick further down — all three are "does this number clear that
+// line" checks with identical push/win/loss rules, just applied to
+// different kinds of number (combined score, team win count, a stat line).
+function settleOverUnder(actualValue: number, line: number, wantsOver: boolean): PickResult {
+  if (actualValue === line) return 'push'
+  const wentOver = actualValue > line
+  return wantsOver === wentOver ? 'win' : 'loss'
+}
 
 // PROJECT_SPEC.md Section 4.3: even-money payouts, push on an exact tie.
 // This settles the SPREAD half of a pick — see settleTotal below for the
@@ -50,11 +62,36 @@ export function settleTotal(game: Game, pick: Pick): PickResult | null {
   if (!game.finalScore || game.total == null) return 'pending'
 
   const combinedScore = game.finalScore.home + game.finalScore.away
-  if (combinedScore === game.total) return 'push'
+  return settleOverUnder(combinedScore, game.total, pick.totalSide === 'over')
+}
 
-  const wentOver = combinedScore > game.total
-  const pickHit = pick.totalSide === 'over' ? wentOver : !wentOver
-  return pickHit ? 'win' : 'loss'
+// Season Win Totals (PROJECT_SPEC.md Section 4.4): settles once an admin
+// enters the team's real final win count (`actualWins`) — see
+// updateSeasonWinTotalActualWins in src/lib/seasonWinTotals.ts, which calls
+// this and writes both fields together.
+export function settleSeasonWinTotal(bet: SeasonWinTotal): PickResult {
+  if (bet.actualWins == null) return 'pending'
+  return settleOverUnder(bet.actualWins, bet.line, bet.side === 'over')
+}
+
+// Super Bowl Props (PROJECT_SPEC.md Section 4.5). Two shapes, matching
+// PropDefinition's `line` vs `choices` split:
+//  - Lined props (line set): same over/under-vs-a-number math as totals
+//    and season win totals, settled once `actualValue` is entered.
+//  - Choice props (choices set, e.g. coin toss): no number to compare —
+//    settled once `correctChoice` is entered, by simple string match. No
+//    "push" concept here (a discrete answer is either right or wrong).
+// Per Stephen (2026-09-08): both auto-settle from ONE admin entry on the
+// shared PropDefinition, applying to every user's pick against it — same
+// "settle once, not per-user" pattern as game scores — rather than
+// requiring each individual SuperBowlProp to be toggled by hand.
+export function settlePropPick(def: PropDefinition, prop: SuperBowlProp): PickResult {
+  if (def.line != null) {
+    if (def.actualValue == null) return 'pending'
+    return settleOverUnder(def.actualValue, def.line, prop.pick === 'Over')
+  }
+  if (def.correctChoice == null) return 'pending'
+  return prop.pick === def.correctChoice ? 'win' : 'loss'
 }
 
 export interface SettledResult {

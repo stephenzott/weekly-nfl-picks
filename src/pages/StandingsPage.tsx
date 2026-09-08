@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
 import { useAllGames } from '../hooks/useAllGames'
 import { useAllPicks } from '../hooks/useAllPicks'
+import { useAllPropDefinitions } from '../hooks/useAllPropDefinitions'
 import { useSeasonWinTotals } from '../hooks/useSeasonWinTotals'
+import { useSuperBowlProps } from '../hooks/useSuperBowlProps'
 import { useUsers } from '../hooks/useUsers'
 import { useWeeks } from '../hooks/useWeeks'
-import { settleWeekPicks } from '../lib/settleWeek'
+import { settleWeekPicks, settleWeekProps } from '../lib/settleWeek'
 import { computeStandings, type StandingsRow } from '../lib/standings'
 
 // Formats a net dollar amount with an explicit +/- sign so it's obvious at
@@ -36,6 +38,8 @@ export function StandingsPage() {
   const weeks = useWeeks()
   const [allPicks, picksLoaded] = useAllPicks()
   const [allGames, gamesLoaded] = useAllGames()
+  const [propDefs, propDefsLoaded] = useAllPropDefinitions()
+  const [allProps, propsLoaded] = useSuperBowlProps()
   const seasonWinTotals = useSeasonWinTotals()
 
   // Settlement engine (task #7) normally runs from the Picks tab, scoped to
@@ -52,19 +56,28 @@ export function StandingsPage() {
     settleWeekPicks(allGames, allPicks)
   }, [allGames, allPicks])
 
-  const standings = computeStandings(users, weeks, allPicks, seasonWinTotals)
+  // Same reasoning, extended to Super Bowl Props (task #10): props can be
+  // settled from either the Picks page (whichever week is selected) or
+  // here, so this page can't assume the props it's summing have already
+  // been settled elsewhere.
+  useEffect(() => {
+    if (propDefs.length === 0) return
+    settleWeekProps(propDefs, allProps)
+  }, [propDefs, allProps])
+
+  const standings = computeStandings(users, weeks, allPicks, seasonWinTotals, propDefs, allProps)
   // PROJECT_SPEC.md Section 4.9's whole point is bragging rights — rank
   // everyone by season net $, best to worst.
   const ranked = [...standings].sort((a, b) => b.seasonNet - a.seasonNet)
   const ranks = competitionRanks(ranked)
 
-  // Gated on the two money-bearing subscriptions (picks/games), not on
-  // users/weeks: an empty `allPicks`/`allGames` before their first
-  // Firestore snapshot arrives would otherwise render a confident-looking
-  // "everyone is at $0" leaderboard that's actually just still loading, not
-  // real data. Users/weeks arriving a beat later just means the tables
-  // briefly have fewer rows, which isn't misleading the same way.
-  if (!picksLoaded || !gamesLoaded) {
+  // Gated on the four money-bearing subscriptions (picks/games/props), not
+  // on users/weeks: an empty array before its first Firestore snapshot
+  // arrives would otherwise render a confident-looking "everyone is at $0"
+  // leaderboard that's actually just still loading, not real data. Users/
+  // weeks arriving a beat later just means the tables briefly have fewer
+  // rows, which isn't misleading the same way.
+  if (!picksLoaded || !gamesLoaded || !propDefsLoaded || !propsLoaded) {
     return <p>Loading standings…</p>
   }
 
@@ -123,10 +136,9 @@ export function StandingsPage() {
       )}
       <p>
         <small>
-          Season Net includes each week's picks (spread + total) plus Season Win Totals once
-          those are settled. Season Win Totals aren't attributed to any single week above. Super
-          Bowl Props aren't included yet — that feature's user-facing picking UI hasn't been
-          built (task #10).
+          Season Net includes each week's picks (spread + total) and Super Bowl Props, plus
+          Season Win Totals once those are settled. Season Win Totals aren't attributed to any
+          single week above; Props are, via their prop definition's week.
         </small>
       </p>
     </div>

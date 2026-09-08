@@ -1,6 +1,7 @@
 import { updatePickResult } from './picks'
-import { settlePick } from './settlement'
-import type { Game, Pick } from '../types'
+import { settlePick, settlePropPick } from './settlement'
+import { updateSuperBowlPropResult } from './superBowlProps'
+import type { Game, Pick, PropDefinition, SuperBowlProp } from '../types'
 
 // Auto-settles every pick that references a FINAL game, whenever anyone
 // views a week (same trigger pattern as backfillMissedPicksForWeek).
@@ -31,5 +32,31 @@ export async function settleWeekPicks(games: Game[], allPicks: Pick[]): Promise<
     if (settled.result === pick.result && settled.totalResult === pick.totalResult) continue
 
     await updatePickResult(pick.id, settled.result, settled.totalResult)
+  }
+}
+
+// Same self-healing pattern as settleWeekPicks above, but for Super Bowl
+// Props: settles every SuperBowlProp whose definition has a real outcome
+// entered (`actualValue` for lined props, `correctChoice` for choice
+// props — see settlePropPick). `propDefs` doesn't need to be pre-filtered
+// to "final" anything the way games are — a definition either has its
+// outcome entered or it doesn't, there's no separate "status" field to
+// check first.
+export async function settleWeekProps(
+  propDefs: PropDefinition[],
+  allProps: SuperBowlProp[],
+): Promise<void> {
+  if (propDefs.length === 0) return
+
+  const defsById = new Map(propDefs.map((d) => [d.id, d]))
+
+  for (const prop of allProps) {
+    const def = defsById.get(prop.propDefinitionId)
+    if (!def) continue
+
+    const settled = settlePropPick(def, prop)
+    if (settled === prop.result) continue
+
+    await updateSuperBowlPropResult(prop.id, settled)
   }
 }

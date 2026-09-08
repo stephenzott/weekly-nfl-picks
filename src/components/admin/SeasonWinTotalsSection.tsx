@@ -1,16 +1,9 @@
 import { useState } from 'react'
 import { useSeasonWinTotals } from '../../hooks/useSeasonWinTotals'
 import { useUsers } from '../../hooks/useUsers'
-import { addSeasonWinTotal } from '../../lib/seasonWinTotals'
-import type { WinTotalSide } from '../../types'
-
-// PROJECT_SPEC.md Section 4.4: "each user makes exactly 4 bets ... at a
-// flat $20 per bet ... not flexible." REQUIRED_BETS_PER_USER and
-// FLAT_STAKE encode those two hard constraints so the form can enforce
-// them (stake isn't even an input field — it's always $20) rather than
-// just hoping whoever's using Admin remembers the rule.
-const REQUIRED_BETS_PER_USER = 4
-const FLAT_STAKE = 20
+import { MIN_STAKE, SEASON_WIN_TOTAL_BUDGET, SEASON_WIN_TOTAL_REQUIRED_BETS } from '../../lib/constants'
+import { addSeasonWinTotal, updateSeasonWinTotalActualWins } from '../../lib/seasonWinTotals'
+import type { SeasonWinTotal, WinTotalSide } from '../../types'
 
 export function SeasonWinTotalsSection() {
   const users = useUsers()
@@ -20,12 +13,41 @@ export function SeasonWinTotalsSection() {
   const [team, setTeam] = useState('')
   const [line, setLine] = useState('')
   const [side, setSide] = useState<WinTotalSide>('over')
+  const [stake, setStake] = useState(MIN_STAKE)
   const [submitting, setSubmitting] = useState(false)
 
   const betsForSelectedUser = bets.filter((b) => b.userId === userId)
-  const selectedUserIsFull = userId !== '' && betsForSelectedUser.length >= REQUIRED_BETS_PER_USER
+  const selectedUserIsFull = userId !== '' && betsForSelectedUser.length >= SEASON_WIN_TOTAL_REQUIRED_BETS
 
-  const canSubmit = userId && team.trim() && line && !selectedUserIsFull
+  // PROJECT_SPEC.md Section 4.4, changed during build (Stephen,
+  // 2026-09-08): the 4 required bets must now sum to EXACTLY $100 (not
+  // just "up to $100"), freely split however the user wants — same
+  // "reserve $10 for every OTHER not-yet-placed bet" math as the weekly
+  // picks budget (see WeekPicks.tsx/PickSlot.tsx), scoped to one user's 4
+  // season-long bets. To guarantee the total lands exactly on $100 rather
+  // than under it, the LAST of the 4 bets isn't freely entered at all —
+  // its stake is forced to whatever's left, closing the gap exactly (the
+  // same trick as "split the check" UIs auto-filling the final share).
+  const alreadyStaked = betsForSelectedUser.reduce((sum, b) => sum + b.stake, 0)
+  const isLastBet = betsForSelectedUser.length === SEASON_WIN_TOTAL_REQUIRED_BETS - 1
+  const remainingBudget = SEASON_WIN_TOTAL_BUDGET - alreadyStaked
+  const otherUnplacedBets = Math.max(0, SEASON_WIN_TOTAL_REQUIRED_BETS - betsForSelectedUser.length - 1)
+  const reserveForOtherBets = otherUnplacedBets * MIN_STAKE
+  const maxStakeForThisBet = remainingBudget - reserveForOtherBets
+  // The forced final stake: whatever's left after the first 3 bets. The
+  // reserve math above guarantees this is always >= MIN_STAKE by the time
+  // it's actually the 4th bet being entered (each prior bet was capped to
+  // leave enough behind), so it never needs its own validation.
+  const effectiveStake = isLastBet ? remainingBudget : stake
+  const wouldExceedBudget = !isLastBet && stake > maxStakeForThisBet
+
+  const canSubmit =
+    userId &&
+    team.trim() &&
+    line &&
+    !selectedUserIsFull &&
+    effectiveStake >= MIN_STAKE &&
+    !wouldExceedBudget
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -37,13 +59,14 @@ export function SeasonWinTotalsSection() {
         team: team.trim(),
         line: Number(line),
         side,
-        stake: FLAT_STAKE,
+        stake: effectiveStake,
         actualWins: null,
         result: 'pending',
       })
       setTeam('')
       setLine('')
       setSide('over')
+      setStake(MIN_STAKE)
     } finally {
       setSubmitting(false)
     }
@@ -59,7 +82,7 @@ export function SeasonWinTotalsSection() {
             <option value="">— Select —</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} ({bets.filter((b) => b.userId === u.id).length}/{REQUIRED_BETS_PER_USER})
+                {u.name} ({bets.filter((b) => b.userId === u.id).length}/{SEASON_WIN_TOTAL_REQUIRED_BETS})
               </option>
             ))}
           </select>
@@ -90,14 +113,42 @@ export function SeasonWinTotalsSection() {
             <option value="under">Under</option>
           </select>
         </label>{' '}
-        <span>${FLAT_STAKE} (flat)</span>{' '}
+        <label>
+          Stake ($){' '}
+          <input
+            type="number"
+            value={isLastBet ? remainingBudget : stake}
+            onChange={(e) => setStake(Number(e.target.value))}
+            min={MIN_STAKE}
+            step={1}
+            disabled={isLastBet}
+          />
+        </label>{' '}
         <button type="submit" disabled={!canSubmit || submitting}>
           {submitting ? 'Adding…' : 'Add Bet'}
         </button>
+        {userId && isLastBet && (
+          <p>
+            Last bet — stake locked at ${remainingBudget} to bring{' '}
+            {users.find((u) => u.id === userId)?.name}'s total to exactly ${SEASON_WIN_TOTAL_BUDGET}.
+          </p>
+        )}
+        {userId && !isLastBet && !selectedUserIsFull && (
+          <p>
+            ${remainingBudget} of ${SEASON_WIN_TOTAL_BUDGET} left for{' '}
+            {users.find((u) => u.id === userId)?.name}'s remaining bets
+            {reserveForOtherBets > 0 && ` ($${reserveForOtherBets} of that needs to stay reserved for the others)`}.
+          </p>
+        )}
+        {userId && wouldExceedBudget && !selectedUserIsFull && (
+          <p style={{ color: 'red' }}>
+            That stake is more than the ${maxStakeForThisBet} available for this bet right now.
+          </p>
+        )}
         {selectedUserIsFull && (
           <p style={{ color: 'red' }}>
-            {users.find((u) => u.id === userId)?.name} already has {REQUIRED_BETS_PER_USER} season
-            win total bets.
+            {users.find((u) => u.id === userId)?.name} already has {SEASON_WIN_TOTAL_REQUIRED_BETS}{' '}
+            season win total bets.
           </p>
         )}
       </form>
@@ -117,19 +168,69 @@ export function SeasonWinTotalsSection() {
           </thead>
           <tbody>
             {bets.map((bet) => (
-              <tr key={bet.id}>
-                <td>{users.find((u) => u.id === bet.userId)?.name ?? bet.userId}</td>
-                <td>
-                  {bet.team} {bet.line} ({bet.side})
-                </td>
-                <td>${bet.stake}</td>
-                <td>{bet.actualWins ?? '—'}</td>
-                <td>{bet.result}</td>
-              </tr>
+              <SeasonWinTotalRow
+                key={bet.id}
+                bet={bet}
+                userName={users.find((u) => u.id === bet.userId)?.name ?? bet.userId}
+              />
             ))}
           </tbody>
         </table>
       )}
     </div>
+  )
+}
+
+// Split into its own component (rather than inline in the table above) so
+// the "actual wins" input field has its own local state per row — without
+// this, typing into one row's input would need to update one shared piece
+// of parent state keyed by bet id, which is more bookkeeping for the same
+// result.
+function SeasonWinTotalRow({
+  bet,
+  userName,
+}: {
+  bet: SeasonWinTotal
+  userName: string
+}) {
+  const [actualWinsInput, setActualWinsInput] = useState(bet.actualWins != null ? String(bet.actualWins) : '')
+  const [saving, setSaving] = useState(false)
+
+  async function handleSaveActualWins() {
+    if (actualWinsInput === '') return
+    setSaving(true)
+    try {
+      // PROJECT_SPEC.md Section 4.4: settlement happens once, at the end of
+      // the season, when the team's real final win count is known —
+      // computing and writing `result` here (rather than a background
+      // settlement pass) matches that "one manual entry, once" shape. See
+      // updateSeasonWinTotalActualWins in src/lib/seasonWinTotals.ts.
+      await updateSeasonWinTotalActualWins(bet, Number(actualWinsInput))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <tr>
+      <td>{userName}</td>
+      <td>
+        {bet.team} {bet.line} ({bet.side})
+      </td>
+      <td>${bet.stake}</td>
+      <td>
+        <input
+          type="number"
+          value={actualWinsInput}
+          onChange={(e) => setActualWinsInput(e.target.value)}
+          min={0}
+          style={{ width: 60 }}
+        />{' '}
+        <button onClick={handleSaveActualWins} disabled={actualWinsInput === '' || saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </td>
+      <td>{bet.result}</td>
+    </tr>
   )
 }
