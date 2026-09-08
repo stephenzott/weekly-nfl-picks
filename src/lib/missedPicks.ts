@@ -1,7 +1,7 @@
 import { MIN_STAKE } from './constants'
 import { hasKickedOff } from './gameTiming'
 import { savePick } from './picks'
-import { computeSlotsForRegularWeek, findExistingPick, type Slot } from './slots'
+import { computeSlotsForPlayoffWeek, computeSlotsForRegularWeek, findExistingPick, type Slot } from './slots'
 import type { Game, Pick, User, Week } from '../types'
 
 // The specific game that determines when a slot counts as "missed."
@@ -36,12 +36,16 @@ export async function backfillMissedPicksForWeek(
   users: User[],
   now: Date,
 ): Promise<void> {
-  // Playoff weeks use a different pick structure (every game is its own
-  // required pick, not fixed slots) that hasn't been built yet — task 9.
-  if (week.type !== 'regular') return
   if (games.length === 0) return
 
-  const slots = computeSlotsForRegularWeek(games)
+  // Playoff weeks use a different pick structure (every game is its own
+  // required pick, not fixed AM/PM/SNF/etc. roles) — see
+  // computeSlotsForPlayoffWeek. slotDeadlineGame and the loop below don't
+  // need to care which kind of slot they're looking at either way, since
+  // playoff slots are always "fixedGame" (same shape SNF/MNF/Bonus already
+  // use).
+  const slots =
+    week.type === 'playoff' ? computeSlotsForPlayoffWeek(games) : computeSlotsForRegularWeek(games)
 
   for (const user of users) {
     const myPicks = allPicks.filter((p) => p.userId === user.id)

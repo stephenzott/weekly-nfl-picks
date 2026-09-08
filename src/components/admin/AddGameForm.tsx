@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore'
 import { useState } from 'react'
 import { addGame } from '../../lib/games'
-import type { GameSlot } from '../../types'
+import type { GameSlot, WeekType } from '../../types'
 
 const SLOTS: GameSlot[] = [
   'AM',
@@ -15,10 +15,19 @@ const SLOTS: GameSlot[] = [
 
 interface AddGameFormProps {
   weekId: string
+  weekType: WeekType
 }
 
-export function AddGameForm({ weekId }: AddGameFormProps) {
+export function AddGameForm({ weekId, weekType }: AddGameFormProps) {
   const [slot, setSlot] = useState<GameSlot>('AM')
+  // PROJECT_SPEC.md Section 4.2: playoff weeks have no AM/PM/SNF/etc. roles
+  // — every game IS a "Playoff" pick. Per Stephen (2026-09-07): computed
+  // fresh from the `weekType` prop at submit time (rather than trusted from
+  // `slot` state) so it's always correct regardless of what `slot` happens
+  // to hold — e.g. left over from before switching which week is selected
+  // in the Admin dropdown, since this component isn't remounted on that
+  // switch.
+  const effectiveSlot = weekType === 'playoff' ? 'Playoff' : slot
   const [homeTeam, setHomeTeam] = useState('')
   const [awayTeam, setAwayTeam] = useState('')
   // The <input type="datetime-local"> element gives us back a string like
@@ -44,7 +53,7 @@ export function AddGameForm({ weekId }: AddGameFormProps) {
     try {
       await addGame({
         weekId,
-        slot,
+        slot: effectiveSlot,
         homeTeam: homeTeam.trim(),
         awayTeam: awayTeam.trim(),
         kickoffTime: Timestamp.fromDate(new Date(kickoffLocal)),
@@ -75,16 +84,20 @@ export function AddGameForm({ weekId }: AddGameFormProps) {
     <form onSubmit={handleSubmit}>
       <h3>Add a Game</h3>
       <div>
-        <label>
-          Slot{' '}
-          <select value={slot} onChange={(e) => setSlot(e.target.value as GameSlot)}>
-            {SLOTS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+        {weekType === 'playoff' ? (
+          <label>Slot: Playoff (every game in a playoff week requires a pick)</label>
+        ) : (
+          <label>
+            Slot{' '}
+            <select value={slot} onChange={(e) => setSlot(e.target.value as GameSlot)}>
+              {SLOTS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       <div>
         <label>

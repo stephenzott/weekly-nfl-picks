@@ -6,7 +6,7 @@ import { useUsers } from '../../hooks/useUsers'
 import { MIN_STAKE } from '../../lib/constants'
 import { backfillMissedPicksForWeek } from '../../lib/missedPicks'
 import { settleWeekPicks } from '../../lib/settleWeek'
-import { computeSlotsForRegularWeek, findExistingPick } from '../../lib/slots'
+import { computeSlotsForPlayoffWeek, computeSlotsForRegularWeek, findExistingPick } from '../../lib/slots'
 import type { Week } from '../../types'
 import { BudgetSummary } from './BudgetSummary'
 import { PickSlot } from './PickSlot'
@@ -52,15 +52,15 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
     settleWeekPicks(games, allPicks)
   }, [games, allPicks])
 
-  if (week.type === 'playoff') {
-    return <p>Playoff-week picks aren't built yet.</p>
-  }
-
-  const slots = computeSlotsForRegularWeek(games)
-
   if (games.length === 0) {
     return <p>No games have been added for this week yet — check the Admin tab.</p>
   }
+
+  // PROJECT_SPEC.md Section 4.2: playoff weeks have no fixed slot
+  // structure — every game IS its own required pick, unlike the regular
+  // season's AM/PM/SNF/MNF/WildCard/HighSpread/Bonus roles.
+  const slots =
+    week.type === 'playoff' ? computeSlotsForPlayoffWeek(games) : computeSlotsForRegularWeek(games)
 
   // Computed once up front (rather than inline per slot below) because
   // `reserveForOtherSlots` needs to know, for each slot, how many OF THE
@@ -69,8 +69,31 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
   // reserve.
   const slotEntries = slots.map((slot) => ({ slot, existingPick: findExistingPick(myPicks, slot) }))
 
+  // Regular season weeks always have exactly 6 fixed slots (well under
+  // this), but a playoff week's slot count comes from however many games
+  // an admin adds — PROJECT_SPEC.md's own biggest example is Wild Card
+  // weekend's 6 games, but nothing stops an admin from adding more by
+  // mistake. If there are ever more required slots than the $120 budget
+  // can cover at the $10 minimum each, PickSlot's reserve logic (see
+  // reserveForOtherSlots below) ends up reserving the ENTIRE budget for
+  // "other slots," leaving every single pick — even at the $10 minimum —
+  // rejected as over budget. That's mathematically correct (there
+  // genuinely isn't enough budget for every required slot), but without
+  // this banner a user just sees a confusing per-slot error message with
+  // no explanation of why the whole week is stuck. Per Stephen
+  // (2026-09-08): surface it plainly instead.
+  const maxSupportableSlots = Math.floor(week.budget / MIN_STAKE)
+  const isOverBudget = slots.length > maxSupportableSlots
+
   return (
     <div>
+      {isOverBudget && (
+        <p style={{ color: 'red', fontWeight: 'bold' }}>
+          This week has {slots.length} required picks, but the ${week.budget} budget only
+          supports up to {maxSupportableSlots} at the ${MIN_STAKE} minimum stake each. No pick can
+          be saved until an admin removes some games from this week or increases its budget.
+        </p>
+      )}
       <BudgetSummary budget={week.budget} myPicks={myPicks} />
       {slotEntries.map(({ slot, existingPick }, i) => {
         // Everything this user has already staked on OTHER slots this

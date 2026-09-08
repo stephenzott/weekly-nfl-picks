@@ -88,6 +88,30 @@ export function computeSlotsForRegularWeek(games: Game[]): Slot[] {
   return slots
 }
 
+// PROJECT_SPEC.md Section 4.2: playoff weeks have "no fixed slot structure
+// ... users pick every single game on that week's playoff slate." Unlike
+// the regular season (which sorts games into named roles — AM/PM/SNF/etc.),
+// every game in a playoff week gets its own required pick, one slot per
+// game, all sharing the pickType "Playoff" (the same repeatable pattern
+// already used for Bonus games — see REPEATABLE_PICK_TYPES in
+// src/lib/picks.ts and the matching branch in findExistingPick below).
+//
+// Deliberately uses EVERY game passed in, regardless of that game's own
+// `slot` field — per Stephen (2026-09-07), a playoff week's games ARE the
+// playoff slate by definition (the week itself, not each game's slot
+// label, is what makes it a playoff week), and requiring an exact
+// `slot: 'Playoff'` tag on every game would risk a mis-tagged game (e.g.
+// left on the AM/PM/etc. default while being added) silently not requiring
+// a pick from anyone.
+export function computeSlotsForPlayoffWeek(games: Game[]): Slot[] {
+  return games.map((game) => ({
+    kind: 'fixedGame',
+    pickType: 'Playoff',
+    label: `${game.awayTeam} @ ${game.homeTeam}`,
+    game,
+  }))
+}
+
 // Finds one user's already-saved pick for a given slot (a real pick OR a
 // backfilled default-loss one — see src/lib/missedPicks.ts). Most slot
 // types are "singletons" — a user gets exactly one pick for it per week,
@@ -106,8 +130,15 @@ export function computeSlotsForRegularWeek(games: Game[]): Slot[] {
 //    arrived yet. Requiring gameId to match means the old pick just
 //    becomes invisible to the new slot (harmless leftover data) rather
 //    than blocking it.
+// Playoff joins Bonus/HighSpread in this list for the same repeatable-slot
+// reason as Bonus: pickType "Playoff" is shared across every game in the
+// week (see computeSlotsForPlayoffWeek above), so pickType alone can't
+// tell two different playoff games' picks apart.
 export function findExistingPick(myPicks: Pick[], slot: Slot): Pick | undefined {
-  if (slot.kind === 'fixedGame' && (slot.pickType === 'Bonus' || slot.pickType === 'HighSpread')) {
+  if (
+    slot.kind === 'fixedGame' &&
+    (slot.pickType === 'Bonus' || slot.pickType === 'HighSpread' || slot.pickType === 'Playoff')
+  ) {
     return myPicks.find((p) => p.pickType === slot.pickType && p.gameId === slot.game.id)
   }
   return myPicks.find((p) => p.pickType === slot.pickType)

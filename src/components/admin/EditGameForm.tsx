@@ -2,7 +2,7 @@ import { Timestamp } from 'firebase/firestore'
 import { useState } from 'react'
 import { fetchEspnScore } from '../../lib/espn'
 import { updateGame } from '../../lib/games'
-import type { Game, GameSlot } from '../../types'
+import type { Game, GameSlot, WeekType } from '../../types'
 
 const SLOTS: GameSlot[] = ['AM', 'PM', 'SNF', 'MNF', 'WildCardPool', 'Bonus', 'Playoff']
 
@@ -18,11 +18,16 @@ function toDatetimeLocalValue(timestamp: Game['kickoffTime']): string {
 
 interface EditGameFormProps {
   game: Game
+  weekType: WeekType
   onDone: () => void
 }
 
-export function EditGameForm({ game, onDone }: EditGameFormProps) {
+export function EditGameForm({ game, weekType, onDone }: EditGameFormProps) {
   const [slot, setSlot] = useState<GameSlot>(game.slot)
+  // Same reasoning as AddGameForm: playoff weeks lock every game to the
+  // "Playoff" slot, computed fresh from `weekType` rather than trusted
+  // from `slot` state.
+  const effectiveSlot = weekType === 'playoff' ? 'Playoff' : slot
   const [homeTeam, setHomeTeam] = useState(game.homeTeam)
   const [awayTeam, setAwayTeam] = useState(game.awayTeam)
   const [kickoffLocal, setKickoffLocal] = useState(() => toDatetimeLocalValue(game.kickoffTime))
@@ -62,7 +67,7 @@ export function EditGameForm({ game, onDone }: EditGameFormProps) {
     setDetailsError(null)
     try {
       await updateGame(game.id, {
-        slot,
+        slot: effectiveSlot,
         homeTeam: homeTeam.trim(),
         awayTeam: awayTeam.trim(),
         kickoffTime: Timestamp.fromDate(new Date(kickoffLocal)),
@@ -134,16 +139,20 @@ export function EditGameForm({ game, onDone }: EditGameFormProps) {
       <fieldset>
         <legend>Game Details</legend>
         <div>
-          <label>
-            Slot{' '}
-            <select value={slot} onChange={(e) => setSlot(e.target.value as GameSlot)}>
-              {SLOTS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
+          {weekType === 'playoff' ? (
+            <label>Slot: Playoff (every game in a playoff week requires a pick)</label>
+          ) : (
+            <label>
+              Slot{' '}
+              <select value={slot} onChange={(e) => setSlot(e.target.value as GameSlot)}>
+                {SLOTS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
         <div>
           <label>

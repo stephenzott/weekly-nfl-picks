@@ -14,6 +14,7 @@ export function AdminPage() {
   const games = useGamesForWeek(selectedWeekId)
   const [editingGameId, setEditingGameId] = useState<string | null>(null)
   const editingGame = games.find((g) => g.id === editingGameId)
+  const selectedWeek = weeks.find((w) => w.id === selectedWeekId)
 
   return (
     <div>
@@ -42,9 +43,9 @@ export function AdminPage() {
         </select>
       </label>
 
-      {selectedWeekId && (
+      {selectedWeekId && selectedWeek && (
         <>
-          <AddGameForm weekId={selectedWeekId} />
+          <AddGameForm weekId={selectedWeekId} weekType={selectedWeek.type} />
           {editingGame && (
             // `key` forces a fresh remount (and fresh useState initializers)
             // when switching which game is being edited — without it,
@@ -53,7 +54,12 @@ export function AdminPage() {
             // would keep showing (and, on save, overwrite the wrong game
             // with) the PREVIOUS game's data. Same failure mode as the key
             // on PickSlot in WeekPicks.tsx, same fix.
-            <EditGameForm key={editingGame.id} game={editingGame} onDone={() => setEditingGameId(null)} />
+            <EditGameForm
+              key={editingGame.id}
+              game={editingGame}
+              weekType={selectedWeek.type}
+              onDone={() => setEditingGameId(null)}
+            />
           )}
           <GamesList games={games} onEdit={setEditingGameId} />
 
