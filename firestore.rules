@@ -1,0 +1,189 @@
+// Firestore security rules for weekly-nfl-picker.
+//
+// PROJECT_SPEC.md Section 3: there is NO authentication in this app by
+// deliberate design (5 friends, honor system) — anyone with the public
+// Firebase config (which ships in the built JS bundle, same as the Odds
+// API key per Section 4.7) can already read every document and could,
+// with a bit of technical effort, write to Firestore directly rather than
+// through the app's UI. These rules can't change that; what they CAN do
+// (and what the spec asks for) is refuse to accept a write that doesn't
+// look like a real, valid document of the right shape — so a bug, or
+// someone poking at the console, can't silently corrupt the data into a
+// state the app doesn't know how to render or settle correctly.
+//
+// Every collection allows public READ (matching the "no auth" decision —
+// hiding picks pre-kickoff is a UI-only rule per Section 4.6, not a real
+// data-secrecy boundary). Writes are shape-validated per collection below.
+// DELETE is blocked everywhere: nothing in the app ever deletes a
+// document, so there's no legitimate reason for a write to succeed as a
+// delete, and disallowing it shrinks what a leaked/scraped config could do.
+//
+// Validation checks that required fields are PRESENT and correctly typed
+// (hasAll + type/enum/range checks), but deliberately does NOT reject
+// documents with EXTRA fields (no hasOnly). This schema has changed in
+// most tasks this season — if a field gets added to a type in
+// src/types.ts and this file isn't updated in the same pass, hasOnly
+// would turn that into every write for that collection silently failing
+// in production (a permission-denied error, not a type error) until
+// someone thinks to check here. Missing-field validation still catches
+// genuinely malformed writes; it just doesn't also demand the field list
+// match exactly.
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Shared across multiple collections' `result`/`totalResult` fields —
+    // see src/types.ts's PickResult.
+    function isPickResult(r) {
+      return r in ['win', 'loss', 'push', 'pending'];
+    }
+
+    // --- users ---
+    // Per Stephen (2026-09-08): the 5-person roster is set and nothing in
+    // the app writes to this collection anymore (it was only ever seeded
+    // once via scripts/seed-users.mjs) — locked to read-only. Adding a 6th
+    // user or renaming one later means updating this file to allow it
+    // again, not a silent capability left open "just in case."
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // --- weeks ---
+    function isValidWeek(data) {
+      return data.keys().hasAll(['label', 'type', 'budget', 'order'])
+        && data.label is string && data.label.size() > 0
+        && data.type in ['regular', 'playoff']
+        && data.budget is number && data.budget > 0
+        && data.order is number;
+    }
+    match /weeks/{weekId} {
+      allow read: if true;
+      allow create, update: if isValidWeek(request.resource.data);
+      allow delete: if false;
+    }
+
+    // --- games ---
+    function isValidSpread(s) {
+      return s == null || (
+        s is map
+        && s.keys().hasAll(['favoredTeam', 'line'])
+        && s.favoredTeam is string && s.favoredTeam.size() > 0
+        && s.line is number && s.line >= 0
+      );
+    }
+    function isValidFinalScore(s) {
+      return s == null || (
+        s is map
+        && s.keys().hasAll(['home', 'away'])
+        && s.home is number && s.home >= 0
+        && s.away is number && s.away >= 0
+      );
+    }
+    function isValidGame(data) {
+      return data.keys().hasAll(['weekId', 'slot', 'homeTeam', 'awayTeam', 'kickoffTime', 'spread', 'total', 'finalScore', 'status', 'lineSource'])
+        && data.weekId is string && data.weekId.size() > 0
+        && data.slot in ['AM', 'PM', 'SNF', 'MNF', 'WildCardPool', 'Bonus', 'Playoff']
+        && data.homeTeam is string && data.homeTeam.size() > 0
+        && data.awayTeam is string && data.awayTeam.size() > 0
+        && data.kickoffTime is timestamp
+        && isValidSpread(data.spread)
+        && (data.total == null || (data.total is number && data.total >= 0))
+        && isValidFinalScore(data.finalScore)
+        && data.status in ['scheduled', 'final']
+        && data.lineSource in ['api', 'manual'];
+    }
+    match /games/{gameId} {
+      allow read: if true;
+      allow create, update: if isValidGame(request.resource.data);
+      allow delete: if false;
+    }
+
+    // --- picks ---
+    function isValidPick(data) {
+      return data.keys().hasAll(['userId', 'gameId', 'weekId', 'pickType', 'spreadSide', 'spreadStake', 'totalSide', 'totalStake', 'result', 'totalResult', 'isDefaultLoss'])
+        && data.userId is string && data.userId.size() > 0
+        && data.gameId is string && data.gameId.size() > 0
+        && data.weekId is string && data.weekId.size() > 0
+        && data.pickType in ['AM', 'PM', 'SNF', 'MNF', 'WildCard', 'HighSpread', 'Bonus', 'Playoff']
+        && data.spreadSide is string
+        // Missed picks (isDefaultLoss: true) intentionally save spreadSide
+        // as '' — see src/lib/missedPicks.ts — so this deliberately does
+        // NOT require spreadSide.size() > 0.
+        && data.spreadStake is number && data.spreadStake >= 10
+        && (data.totalSide == null || data.totalSide in ['over', 'under'])
+        // PROJECT_SPEC.md Section 4.3: the total's stake always mirrors
+        // the spread stake exactly, never entered independently.
+        && ((data.totalSide == null && data.totalStake == null)
+            || (data.totalSide != null && data.totalStake == data.spreadStake))
+        && isPickResult(data.result)
+        && (data.totalResult == null || isPickResult(data.totalResult))
+        && (data.totalSide != null || data.totalResult == null)
+        && data.isDefaultLoss is bool
+        // PROJECT_SPEC.md Section 4.3: a missed pick is always an
+        // automatic LOSS, never a real result waiting to be settled.
+        && (!data.isDefaultLoss || data.result == 'loss');
+    }
+    match /picks/{pickId} {
+      allow read: if true;
+      allow create, update: if isValidPick(request.resource.data);
+      allow delete: if false;
+    }
+
+    // --- seasonWinTotals ---
+    function isValidSeasonWinTotal(data) {
+      return data.keys().hasAll(['userId', 'team', 'line', 'side', 'stake', 'actualWins', 'result'])
+        && data.userId is string && data.userId.size() > 0
+        && data.team is string && data.team.size() > 0
+        && data.line is number
+        && data.side in ['over', 'under']
+        && data.stake is number && data.stake >= 10
+        && (data.actualWins == null || data.actualWins is number)
+        && isPickResult(data.result);
+    }
+    match /seasonWinTotals/{betId} {
+      allow read: if true;
+      allow create, update: if isValidSeasonWinTotal(request.resource.data);
+      allow delete: if false;
+    }
+
+    // --- propDefinitions ---
+    function isValidPropDefinition(data) {
+      return data.keys().hasAll(['weekId', 'propType', 'description', 'line', 'choices', 'actualValue', 'correctChoice'])
+        && data.weekId is string && data.weekId.size() > 0
+        && data.propType is string && data.propType.size() > 0
+        && data.description is string && data.description.size() > 0
+        // Exactly one of line/choices is ever set (never both, never
+        // neither) — see the type's own comment in src/types.ts.
+        && ((data.line is number && data.line >= 0 && data.choices == null)
+            || (data.line == null && data.choices is list && data.choices.size() >= 2))
+        && (data.actualValue == null || data.actualValue is number)
+        && (data.correctChoice == null || data.correctChoice is string)
+        // actualValue only makes sense for a lined prop, correctChoice
+        // only for a choices prop.
+        && (data.actualValue == null || data.line is number)
+        && (data.correctChoice == null || data.choices is list);
+    }
+    match /propDefinitions/{defId} {
+      allow read: if true;
+      allow create, update: if isValidPropDefinition(request.resource.data);
+      allow delete: if false;
+    }
+
+    // --- superBowlProps ---
+    function isValidSuperBowlProp(data) {
+      return data.keys().hasAll(['userId', 'propDefinitionId', 'pick', 'stake', 'result'])
+        && data.userId is string && data.userId.size() > 0
+        && data.propDefinitionId is string && data.propDefinitionId.size() > 0
+        && data.pick is string && data.pick.size() > 0
+        && data.stake is number && data.stake >= 10
+        && isPickResult(data.result);
+    }
+    match /superBowlProps/{propId} {
+      allow read: if true;
+      allow create, update: if isValidSuperBowlProp(request.resource.data);
+      allow delete: if false;
+    }
+  }
+}
