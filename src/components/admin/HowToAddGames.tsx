@@ -28,10 +28,15 @@ export function HowToAddGames() {
             pick.
           </li>
           <li>
-            Add any extra games as <strong>WildCardPool</strong> — these feed the Wild Card and
+            Add extra games as <strong>WildCardPool</strong> — these feed the Wild Card and
             Highest Spread picks below. You need at least 2 of these for BOTH picks to show up
             (1 becomes Highest Spread, whatever's left becomes the Wild Card pool); with only 1,
-            it can become Highest Spread but there's no Wild Card that week.
+            it can become Highest Spread but there's no Wild Card that week. Use{' '}
+            <strong>Import Wild Card Games</strong> to pull these in from the Odds API instead of
+            typing them by hand — it lists games near this week's dates that aren't already on
+            the board and pre-fills team names, kickoff, spread, and total for whichever ones you
+            check off. It needs at least one game already added (do step 1 first) so it knows
+            which week to look for — the Odds API returns the whole season in one call.
           </li>
           <li>
             A regular season week caps out at <strong>6 games total</strong> — including Bonus.

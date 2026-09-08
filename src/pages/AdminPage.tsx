@@ -6,6 +6,7 @@ import { FetchOddsButton } from '../components/admin/FetchOddsButton'
 import { GamesList } from '../components/admin/GamesList'
 import { HighSpreadPicker } from '../components/admin/HighSpreadPicker'
 import { HowToAddGames } from '../components/admin/HowToAddGames'
+import { ImportWildCardGames } from '../components/admin/ImportWildCardGames'
 import { PropDefinitionsSection } from '../components/admin/PropDefinitionsSection'
 import { SeasonWinTotalsSection } from '../components/admin/SeasonWinTotalsSection'
 import { useGamesForWeek } from '../hooks/useGamesForWeek'
@@ -66,6 +67,9 @@ export function AdminPage() {
               weekType={selectedWeek.type}
               onDone={() => setEditingGameId(null)}
             />
+          )}
+          {selectedWeek.type === 'regular' && (
+            <ImportWildCardGames weekId={selectedWeekId} existingGames={games} />
           )}
           <FetchOddsButton games={games} picksInWeek={picksInWeek} />
           {selectedWeek.type === 'regular' && (

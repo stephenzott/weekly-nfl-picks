@@ -54,6 +54,11 @@ interface OddsApiEvent {
 export interface OddsForGame {
   homeTeamRaw: string
   awayTeamRaw: string
+  // ISO 8601 string straight from the API — kept as-is (not yet a
+  // Firestore Timestamp) since this module doesn't otherwise touch
+  // Firestore types; ImportWildCardGames.tsx converts it at the point
+  // where it actually builds a Game to save.
+  commenceTime: string
   favoredSide: 'home' | 'away' | null
   line: number | null
   total: number | null
@@ -136,6 +141,7 @@ export async function fetchNflOdds(): Promise<FetchOddsResult> {
       return {
         homeTeamRaw: event.home_team,
         awayTeamRaw: event.away_team,
+        commenceTime: event.commence_time,
         favoredSide: spread?.favoredSide ?? null,
         line: spread?.line ?? null,
         total: parseTotal(totalsMarket),
@@ -160,6 +166,19 @@ export function findMatchingOdds(
       (e) => teamNameMatches(homeTeam, e.homeTeamRaw) && teamNameMatches(awayTeam, e.awayTeamRaw),
     ) ?? null
   )
+}
+
+// The Odds API returns full official names ("Kansas City Chiefs"); we
+// store just the nickname ("Chiefs") everywhere else in this app. Every
+// current NFL team name's nickname is its last whitespace-separated word
+// (including multi-word cases like "Buccaneers", "49ers", "Commanders"),
+// so a simple last-token split covers all 32 teams without needing a
+// lookup table. Used by ImportWildCardGames.tsx when creating a brand new
+// Game from an API event, where there's no existing Game.homeTeam/
+// awayTeam to match against yet.
+export function nicknameFromFullName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/)
+  return parts[parts.length - 1]
 }
 
 // Converts a matched OddsForGame into the Spread shape our own Game
