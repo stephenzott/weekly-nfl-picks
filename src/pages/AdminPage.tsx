@@ -5,6 +5,7 @@ import { EditGameForm } from '../components/admin/EditGameForm'
 import { FetchOddsButton } from '../components/admin/FetchOddsButton'
 import { GamesList } from '../components/admin/GamesList'
 import { HighSpreadPicker } from '../components/admin/HighSpreadPicker'
+import { HowToAddGames } from '../components/admin/HowToAddGames'
 import { PropDefinitionsSection } from '../components/admin/PropDefinitionsSection'
 import { SeasonWinTotalsSection } from '../components/admin/SeasonWinTotalsSection'
 import { useGamesForWeek } from '../hooks/useGamesForWeek'
@@ -29,6 +30,7 @@ export function AdminPage() {
       <hr />
 
       <h2>Manage a Week's Games</h2>
+      <HowToAddGames />
       <label>
         Week{' '}
         <select
