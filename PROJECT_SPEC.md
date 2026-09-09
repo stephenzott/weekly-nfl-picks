@@ -79,6 +79,8 @@ No fixed slot structure. Users pick every single game on that week's playoff sla
 
 Before the season starts, each user makes exactly 4 bets on individual teams' regular-season win totals (over/under). **Implementation note, changed during build (Stephen, 2026-09-08):** originally a flat $20 per bet; changed to a $100 total freely split across the 4 required bets (same "user allocates, $10 minimum per bet" model as the weekly $120 picks budget), rather than a fixed amount per bet. This is a separate, one-time-per-season feature, tracked independently from the weekly $120 pick budget. Settlement happens at the end of the season once win totals are final — an admin enters each bet's real final win count and the app computes win/loss/push automatically (task #10).
 
+**Confirmed intentional (2026-09-08):** unlike weekly picks (which lock per-game at kickoff), there is NO deadline/lock on Season Win Totals at all — an admin can add or edit a bet at any time, including after the season has started. Stephen confirmed this should stay honor-system, matching the app's overall no-auth trust model (Section 3), rather than adding an enforced cutoff.
+
 ### 4.5 Super Bowl Props (Super Bowl week feature)
 
 During Super Bowl week only, in addition to the normal spread pick on the game itself, include additional prop bet types, e.g.:
