@@ -44,12 +44,27 @@ jobs:
         run: npm run build
         env:
           # Injected as a build-time environment variable so the Odds API key never
-          # has to be committed to the repo. Set this in GitHub repo Settings ->
-          # Secrets and variables -> Actions -> New repository secret, named
-          # VITE_ODDS_API_KEY. Vite only exposes env vars prefixed with VITE_ to
-          # client code. Not used yet — the Odds API integration (PROJECT_SPEC.md
-          # Section 4.7/8) hasn't been built, and Stephen hasn't provided a key.
+          # has to be committed to the repo. Set in GitHub repo Settings -> Secrets
+          # and variables -> Actions -> Repository secret, named VITE_ODDS_API_KEY.
+          # Vite only exposes env vars prefixed with VITE_ to client code.
           VITE_ODDS_API_KEY: ${{ secrets.VITE_ODDS_API_KEY }}
+
+      # React Router's BrowserRouter reads the real URL path (e.g. /standings),
+      # but GitHub Pages is a plain static file server — it has no file at that
+      # path, so a bookmark, phone refresh, or backgrounded-tab reload on any
+      # route other than the homepage hits a raw GitHub 404 page instead of the
+      # app. GitHub Pages' documented workaround is a 404.html: when it can't
+      # find a matching file, it serves this instead (still with a real 404
+      # HTTP status, but the app's own JS loads and boots, and BrowserRouter
+      # then renders the correct route from the URL that's already in the
+      # address bar). Copying the built index.html itself works here (rather
+      # than a redirect script, which older tutorials use) because Vite's
+      # `base: '/weekly-nfl-picks/'` config already bakes absolute asset paths
+      # into index.html, so it loads correctly regardless of which URL served
+      # it. Done as a build step (not a static file in public/) so it can never
+      # drift out of sync with whatever index.html the current build produces.
+      - name: Copy index.html to 404.html for client-side routing fallback
+        run: cp dist/index.html dist/404.html
 
       - name: Upload build output as a Pages artifact
         uses: actions/upload-pages-artifact@v3
