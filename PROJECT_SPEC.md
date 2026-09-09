@@ -38,7 +38,7 @@ const firebaseConfig = {
 };
 ```
 
-Note: `databaseURL` is for the Realtime Database product, which we are **not** using — we're using **Firestore**, a different product in the same Firebase project. It's fine that this field is present; it just won't be used. Firestore was created in "test mode" (open read/write, no rules yet). Before this app is used with real weekly picks, appropriate Firestore security rules should be added — at minimum, restrict writes to documents that look like valid picks/games/users (shape validation), even without full auth-based access control, to prevent accidental or malicious corruption of the data. Discuss the exact ruleset with Stephen since the "no auth" decision constrains what's actually enforceable.
+Note: `databaseURL` is for the Realtime Database product, which we are **not** using — we're using **Firestore**, a different product in the same Firebase project. It's fine that this field is present; it just won't be used. **Implementation note (2026-09-08): Firestore started in "test mode" but real security rules have since been written (`firestore.rules`) and deployed to production.** Every collection allows public read (matching the no-auth decision) and validates that writes look like a real document of the right shape (`hasAll` + type/enum/range checks) — but deliberately does NOT reject documents with extra fields (no `hasOnly`), so a field added to a type without a matching rules update doesn't silently break every write to that collection. Deletes are blocked everywhere. See `firestore.rules`'s own header comment for the full reasoning.
 
 ---
 
@@ -67,7 +67,7 @@ No fixed slot structure. Users pick every single game on that week's playoff sla
 
 ### 4.3 Money Rules
 
-- **$120 total budget per week**, for spread picks (across all of that week's picks — 6 in a normal week, more in playoffs). This is NOT an even split — each user freely allocates however much of the $120 they want to each pick.
+- **$120 total budget per week**, for spread picks (across all of that week's picks — 6 in a normal week, more in playoffs). This is NOT an even split — each user freely allocates however much of the $120 they want to each pick. **Implementation note (2026-09-08):** the picks must sum to EXACTLY $120, not just "up to" it — the last unfilled required PICK (not prop) auto-locks its stake to whatever's left of the budget once every other pick that week is saved. Deliberately does NOT force Super Bowl props — if any prop is still unfilled when the last pick is reached, forcing is suppressed entirely and that pick behaves like a normal free-entry one (otherwise the $10-per-unfilled-prop reserve would squeeze the forced pick down and pin every prop at exactly $10 with no real choice). What should happen with props + forcing together is deferred until Super Bowl props are actually being built out for a real playoffs run.
 - **$10 minimum bet per pick.** Enforce this in the UI — reject a stake below $10 on any individual pick.
 - **Totals (over/under) are optional per game.** If a user opts into the total for a given game, the total's stake must exactly match whatever they staked on that game's spread pick (this mirrors last season's actual spreadsheet behavior — e.g. $20 on the spread pick means $20 on the total pick too, but the user separately chooses over or under). The total's money is tracked separately from the $120 spread budget — it doesn't eat into it, but the amount is always tied to (mirrors) the corresponding spread stake.
 - **Even-money payouts.** Risk $X, win $X. No juice/vig (e.g., NOT the standard sportsbook "bet $110 to win $100").
@@ -101,14 +101,18 @@ Since this is a static site with no backend/cron, odds are never pulled automati
 
 Note: since there's no backend, the API key will be embedded directly in the public frontend JS bundle and is technically visible to anyone who inspects network requests or source. This was discussed and explicitly accepted as a reasonable tradeoff for a free-tier key used by a small private group — no additional proxy/obfuscation layer is needed.
 
+**Implementation note, added 2026-09-08 ("Import Wild Card Games"):** beyond the "Fetch Odds" button (which only fills spread/total on games the admin has already manually added), there's a second admin action that bulk-CREATES `WildCardPool` games directly from the Odds API response — a checklist of upcoming NFL games not already on the week's board, with team names/kickoff/spread/total all pre-filled, so the admin only has to check boxes rather than hand-type every non-marquee game. Since the API returns the whole season in one call, this is scoped to "this week's" games by anchoring off whichever games are already added (AM/PM/SNF/MNF go in first): a window from 3 days before the earliest existing kickoff to 2 days after the latest. Requires at least one game already on the board before it can run.
+
 ### 4.8 Admin Tab
 
 Available to all 5 users (no special admin-only role). Functionality:
-- Add games for a given week (teams, kickoff time/date, slot type: AM/PM/SNF/MNF/WildCardPool/Bonus/Playoff)
+- Add games for a given week one at a time (teams, kickoff time/date, slot type: AM/PM/SNF/MNF/WildCardPool/Bonus/Playoff), or bulk-import `WildCardPool` games from the Odds API (see 4.7's "Import Wild Card Games" note)
 - Set/edit each game's spread and total (auto-fill attempt via The Odds API, but always manually editable/overridable)
+- Designate which `WildCardPool` game is the week's "Highest Spread" pick (see 4.1 item 6)
 - Add Super Bowl props during Super Bowl week (see 4.5)
 - Enter/confirm final scores to settle bets (auto-fill attempt via ESPN scoreboard endpoint, always manually editable/overridable)
 - Add the 4 Season Win Totals bets before the season (see 4.4)
+- A collapsible "How to add games" help panel walking through the above steps, so setup doesn't depend on Stephen personally (added 2026-09-08)
 
 ### 4.9 Leaderboard / Standings
 
@@ -132,13 +136,15 @@ Collections (each a set of documents/"cards" with the following fields):
 - `id`, `label` (e.g. "Week 1", "Wild Card", "AFC Championship", "Super Bowl")
 - `type`: `"regular"` | `"playoff"`
 - `budget`: number (almost always 120)
+- `order`: number — **implementation note:** not in the original spec; a plain incrementing number set when a week is created, purely so the week-selector dropdown lists weeks in the order they were added (Firestore auto-IDs are random, not creation-ordered, and labels like "Wild Card" don't sort chronologically as strings)
+- `highSpreadGameId`: string or null — **implementation note, added 2026-09-08:** which `WildCardPool` game the admin has designated as this week's "Highest Spread" pick (see 4.1 item 6). Not in Firestore rules' required-field list (`hasAll`) since existing week docs predate it — only validated when present.
 
 **`games`**
 - `id`, `weekId` (reference to a `weeks` doc)
 - `slot`: `"AM"` | `"PM"` | `"SNF"` | `"MNF"` | `"WildCardPool"` | `"Bonus"` | `"Playoff"`
 - `homeTeam`, `awayTeam`
 - `kickoffTime` (timestamp — drives both the pick lock and the visibility reveal)
-- `spread` (e.g. `{ favoredTeam: "Eagles", line: -8.5 }`)
+- `spread` (e.g. `{ favoredTeam: "Eagles", line: 8.5 }` — **implementation note:** `line` is stored as a positive magnitude, not signed as originally spec'd here; `favoredTeam` already carries which side is favored, so the sign was redundant, and display code derives `-`/`+` from whether a team matches `favoredTeam`)
 - `total` (number, e.g. `47.5`)
 - `finalScore` (e.g. `{ home: 24, away: 20 }`, null until final)
 - `status`: `"scheduled"` | `"final"`
@@ -186,13 +192,14 @@ Suggested order (a full regular-season week end-to-end before layering on the mo
 7. **Standings/leaderboard** — weekly and season cumulative views, win/loss record display
 8. **Playoff mode** — variable-game-count weeks (Section 4.2) instead of fixed slots
 9. **Season Win Totals + Super Bowl Props UI** — the once-a-season and once-a-week special features
-10. **Responsive polish** — needs to work well on 5 different people's phones/tablets/laptops
-11. **Deployment** — GitHub Pages build/deploy, Firestore security rules pass (see Section 3 note)
+10. **Responsive polish** — needs to work well on 5 different people's phones/tablets/laptops (done 2026-09-08, alongside the full `STYLE_GUIDE.md` visual redesign)
+11. **Deployment** — GitHub Pages build/deploy, Firestore security rules pass (done 2026-09-08, see Section 3 note)
 
 ---
 
 ## 8. Explicitly Deferred / Open Items
 
-- Firestore security rules are currently wide open ("test mode"). Should be tightened before real use, within the constraint that there's no user auth (see Section 3).
-- The Odds API key has not yet been created — manual entry should work standalone regardless, with API auto-fill as an enhancement layered in once Stephen provides a key.
-- Exact visual/UI design has not been specified — use good judgment for a clean, mobile-friendly sports app aesthetic unless Stephen has specific preferences.
+- ~~Firestore security rules are currently wide open ("test mode")~~ — **done 2026-09-08**, see Section 3.
+- ~~The Odds API key has not yet been created~~ — **done 2026-09-08**, key provided and Fetch Odds/Import Wild Card Games both built (see 4.7).
+- ~~Exact visual/UI design has not been specified~~ — **done 2026-09-08**, see `STYLE_GUIDE.md` (the "Luke's Annual $10 Donation" Vegas tout-sheet direction), fully implemented across Picks/Standings/Admin.
+- How Super Bowl props interact with the forced-exact-$120 rule (4.3) once props are actually being built out for a real playoffs run — currently the safe subset (forcing is suppressed whenever any prop that week is unfilled).
