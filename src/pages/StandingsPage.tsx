@@ -78,68 +78,79 @@ export function StandingsPage() {
   // weeks arriving a beat later just means the tables briefly have fewer
   // rows, which isn't misleading the same way.
   if (!picksLoaded || !gamesLoaded || !propDefsLoaded || !propsLoaded) {
-    return <p>Loading standings…</p>
+    return <p className="page">Loading standings…</p>
   }
 
   return (
-    <div>
-      <h1>Standings</h1>
+    <div className="page">
+      <h2>Standings</h2>
 
-      <h2>Season Leaderboard</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Player</th>
-            <th>Season Net</th>
-            <th>Record (W-L-P)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ranked.map((row, i) => (
-            <tr key={row.userId}>
-              <td>{ranks[i]}</td>
-              <td>{row.userName}</td>
-              <td>{formatNet(row.seasonNet)}</td>
-              <td>
-                {row.record.wins}-{row.record.losses}-{row.record.pushes}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <h2>Week-by-Week Breakdown</h2>
-      {weeks.length === 0 ? (
-        <p>No weeks have been added yet.</p>
-      ) : (
+      <h3>Season Leaderboard</h3>
+      <div className="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>Week</th>
-              {users.map((user) => (
-                <th key={user.id}>{user.name}</th>
-              ))}
+              <th>Rank</th>
+              <th>Player</th>
+              <th>Season Net</th>
+              <th>Record (W-L-P)</th>
             </tr>
           </thead>
           <tbody>
-            {weeks.map((week) => (
-              <tr key={week.id}>
-                <td>{week.label}</td>
-                {standings.map((row) => (
-                  <td key={row.userId}>{formatNet(row.weeklyNet[week.id] ?? 0)}</td>
-                ))}
+            {ranked.map((row, i) => (
+              <tr key={row.userId}>
+                <td>{ranks[i]}</td>
+                <td className="name-cell">{row.userName}</td>
+                <td className={row.seasonNet >= 0 ? 'money-pos' : 'money-neg'}>
+                  {formatNet(row.seasonNet)}
+                </td>
+                <td>
+                  {row.record.wins}-{row.record.losses}-{row.record.pushes}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      <h3>Week-by-Week Breakdown</h3>
+      {weeks.length === 0 ? (
+        <p>No weeks have been added yet.</p>
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Week</th>
+                {users.map((user) => (
+                  <th key={user.id} className="name-cell">
+                    {user.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {weeks.map((week) => (
+                <tr key={week.id}>
+                  <td>{week.label}</td>
+                  {standings.map((row) => {
+                    const net = row.weeklyNet[week.id] ?? 0
+                    return (
+                      <td key={row.userId} className={net >= 0 ? 'money-pos' : 'money-neg'}>
+                        {formatNet(net)}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-      <p>
-        <small>
-          Season Net includes each week's picks (spread + total) and Super Bowl Props, plus
-          Season Win Totals once those are settled. Season Win Totals aren't attributed to any
-          single week above; Props are, via their prop definition's week.
-        </small>
+      <p className="meta">
+        Season Net includes each week's picks (spread + total) and Super Bowl Props, plus
+        Season Win Totals once those are settled. Season Win Totals aren't attributed to any
+        single week above; Props are, via their prop definition's week.
       </p>
     </div>
   )

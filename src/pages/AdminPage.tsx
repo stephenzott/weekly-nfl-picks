@@ -23,8 +23,8 @@ export function AdminPage() {
   const selectedWeek = weeks.find((w) => w.id === selectedWeekId)
 
   return (
-    <div>
-      <h1>Admin</h1>
+    <div className="page">
+      <h2>Admin</h2>
 
       <AddWeekForm onCreated={setSelectedWeekId} nextOrder={weeks.length} />
 

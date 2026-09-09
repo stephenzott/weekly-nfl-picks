@@ -195,82 +195,106 @@ export function PickSlot({
         : slot.candidates.find((g) => g.id === existingPick.gameId)
     const matchupLabel = missedGame ? `${missedGame.awayTeam} @ ${missedGame.homeTeam}` : null
     return (
-      <div
-        style={{
-          border: '1px solid #ccc',
-          borderRadius: 8,
-          padding: 12,
-          marginBottom: 12,
-          opacity: 0.6,
-        }}
-      >
-        <strong>{slot.label}</strong>{' '}
-        <span style={{ color: 'red' }}>❌ No Pick — missed, automatic $10 loss</span>
-        {matchupLabel && <div>{matchupLabel}</div>}
+      <div className="ledger-item ledger-item--muted">
+        <div className="ledger-label">{slot.label}</div>
+        <div className="ledger-detail">
+          <span className="error-text">No Pick — missed, automatic $10 loss</span>
+          {matchupLabel && <div className="meta">{matchupLabel}</div>}
+        </div>
       </div>
     )
   }
 
   return (
-    <div style={{ border: '1px solid #ccc', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-      <strong>{slot.label}</strong>{' '}
-      {existingPick && <span>(saved)</span>}
-      {locked && <span> 🔒 locked (kickoff passed)</span>}
-      {slot.kind === 'poolChoice' && (
-        <div>
-          <select
-            value={selectedGameId}
-            onChange={(e) => setSelectedGameId(e.target.value)}
-            disabled={locked}
-          >
-            <option value="">— Choose a game —</option>
-            {availableCandidates.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.awayTeam} @ {g.homeTeam}
-              </option>
-            ))}
-          </select>
-          {!locked && !existingPick && availableCandidates.length === 0 && (
-            <p>All games in this pool have already kicked off.</p>
-          )}
-        </div>
-      )}
-      {slot.kind === 'fixedGame' && (
-        <div>
-          {slot.game.awayTeam} @ {slot.game.homeTeam}
-        </div>
-      )}
-
-      {game && !spreadOptions && <p>Spread hasn't been set for this game yet.</p>}
-
-      {game && spreadOptions && (
-        <div>
-          {spreadOptions.map((option) => (
-            <label key={option.value} style={{ marginRight: 12 }}>
-              <input
-                type="radio"
-                name={`${slot.pickType}-${game.id}-side`}
-                checked={spreadSide === option.value}
-                onChange={() => setSpreadSide(option.value)}
-                disabled={locked}
-              />{' '}
-              {option.value}
-            </label>
-          ))}
+    <div className="ledger-item">
+      <div className="ledger-label">
+        {slot.label}
+        {existingPick && <div className="pick-status">saved</div>}
+        {locked && <div className="pick-status">locked (kickoff passed)</div>}
+      </div>
+      <div className="ledger-detail">
+        {slot.kind === 'poolChoice' && (
           <div>
-            <label>
-              Stake ($){' '}
-              <input
-                type="number"
-                min={MIN_STAKE}
-                step={1}
-                value={isLastPick ? effectiveStake : spreadStake}
-                onChange={(e) => setSpreadStake(Number(e.target.value))}
-                disabled={locked || isLastPick}
-              />
-            </label>
+            <select
+              value={selectedGameId}
+              onChange={(e) => setSelectedGameId(e.target.value)}
+              disabled={locked}
+            >
+              <option value="">— Choose a game —</option>
+              {availableCandidates.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.awayTeam} @ {g.homeTeam}
+                </option>
+              ))}
+            </select>
+            {!locked && !existingPick && availableCandidates.length === 0 && (
+              <p className="meta">All games in this pool have already kicked off.</p>
+            )}
+          </div>
+        )}
+        {slot.kind === 'fixedGame' && (
+          <div>
+            {slot.game.awayTeam} @ {slot.game.homeTeam}
+          </div>
+        )}
+
+        {game && !spreadOptions && <p className="meta">Spread hasn't been set for this game yet.</p>}
+
+        {game && spreadOptions && (
+          <div>
+            {spreadOptions.map((option) => (
+              <label key={option.value} style={{ marginRight: 12 }}>
+                <input
+                  type="radio"
+                  name={`${slot.pickType}-${game.id}-side`}
+                  checked={spreadSide === option.value}
+                  onChange={() => setSpreadSide(option.value)}
+                  disabled={locked}
+                />{' '}
+                {option.value}
+              </label>
+            ))}
+
+            {game.total != null && (
+              <div>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={totalEnabled}
+                    onChange={(e) => setTotalEnabled(e.target.checked)}
+                    disabled={locked}
+                  />{' '}
+                  Also bet the total ({game.total}) — stake mirrors the spread stake (${effectiveStake})
+                </label>
+                {totalEnabled && (
+                  <div>
+                    <label>
+                      <input
+                        type="radio"
+                        name={`${slot.pickType}-${game.id}-total`}
+                        checked={totalSide === 'over'}
+                        onChange={() => setTotalSide('over')}
+                        disabled={locked}
+                      />{' '}
+                      Over
+                    </label>{' '}
+                    <label>
+                      <input
+                        type="radio"
+                        name={`${slot.pickType}-${game.id}-total`}
+                        checked={totalSide === 'under'}
+                        onChange={() => setTotalSide('under')}
+                        disabled={locked}
+                      />{' '}
+                      Under
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+
             {isLastPick && !locked && effectiveStake >= MIN_STAKE && (
-              <p>
+              <p className="meta">
                 Last pick — stake locked at ${effectiveStake} to bring your week to exactly $
                 {budget}.
               </p>
@@ -282,66 +306,41 @@ export function PickSlot({
               // normal pick flow can trigger on its own. Surfacing why
               // (rather than a silently disabled button) points at the
               // actual fix: an earlier pick needs to be lowered first.
-              <p style={{ color: 'red' }}>
+              <p className="error-text">
                 Only ${effectiveStake} is left for this pick — below the ${MIN_STAKE} minimum. This
                 usually means a game/prop was added to this week after earlier picks were already
                 saved; lower an earlier pick's stake to free up room.
               </p>
             )}
             {!locked && !isLastPick && wouldExceedBudget && (
-              <p style={{ color: 'red' }}>
+              <p className="error-text">
                 {reserveForOtherSlots > 0
                   ? `That would leave less than $${MIN_STAKE} for your other unpicked slots this week ($${reserveForOtherSlots} needs to stay reserved).`
                   : `That would put you at $${projectedTotal} for the week — over the $${budget} budget.`}
               </p>
             )}
+            {error && <p className="error-text">{error}</p>}
+            {locked && !existingPick && <p className="meta">No pick was submitted before kickoff.</p>}
           </div>
-
-          {game.total != null && (
-            <div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={totalEnabled}
-                  onChange={(e) => setTotalEnabled(e.target.checked)}
-                  disabled={locked}
-                />{' '}
-                Also bet the total ({game.total}) — stake mirrors the spread stake (${effectiveStake})
-              </label>
-              {totalEnabled && (
-                <div>
-                  <label>
-                    <input
-                      type="radio"
-                      name={`${slot.pickType}-${game.id}-total`}
-                      checked={totalSide === 'over'}
-                      onChange={() => setTotalSide('over')}
-                      disabled={locked}
-                    />{' '}
-                    Over
-                  </label>{' '}
-                  <label>
-                    <input
-                      type="radio"
-                      name={`${slot.pickType}-${game.id}-total`}
-                      checked={totalSide === 'under'}
-                      onChange={() => setTotalSide('under')}
-                      disabled={locked}
-                    />{' '}
-                    Under
-                  </label>
-                </div>
-              )}
-            </div>
-          )}
-
-          {error && <p style={{ color: 'red' }}>{error}</p>}
-          {!locked && (
-            <button onClick={handleSave} disabled={!canSave || saving}>
-              {saving ? 'Saving…' : 'Save Pick'}
-            </button>
-          )}
-          {locked && !existingPick && <p>No pick was submitted before kickoff.</p>}
+        )}
+      </div>
+      {game && spreadOptions && !locked && (
+        <div className="ledger-control">
+          <label>
+            $
+            <input
+              type="number"
+              min={MIN_STAKE}
+              step={1}
+              value={isLastPick ? effectiveStake : spreadStake}
+              onChange={(e) => setSpreadStake(Number(e.target.value))}
+              disabled={locked || isLastPick}
+              style={{ width: '5rem', marginLeft: 4, marginRight: 8 }}
+            />
+          </label>
+          <button onClick={handleSave} disabled={!canSave || saving}>
+            {saving ? 'Saving…' : 'Save Pick'}
+          </button>
         </div>
       )}
     </div>

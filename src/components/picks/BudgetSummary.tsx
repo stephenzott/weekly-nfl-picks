@@ -19,11 +19,12 @@ export function BudgetSummary({ budget, myPicks, myProps = [] }: BudgetSummaryPr
   const remaining = budget - used
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <strong>Budget:</strong> ${used} used of ${budget} (${remaining} remaining)
-      {remaining < 0 && (
-        <span style={{ color: 'red' }}> — over budget!</span>
-      )}
+    <div className="ledger-total">
+      <span>
+        TOTAL STAKED: ${used} / ${budget}
+        {remaining >= 0 ? ` ($${remaining} left)` : ''}
+      </span>
+      {remaining < 0 && <span className="error-text">— over budget!</span>}
     </div>
   )
 }

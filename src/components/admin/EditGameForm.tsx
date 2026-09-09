@@ -216,7 +216,7 @@ export function EditGameForm({ game, weekType, onDone }: EditGameFormProps) {
             />
           </label>
         </div>
-        {detailsError && <p style={{ color: 'red' }}>{detailsError}</p>}
+        {detailsError && <p className="error-text">{detailsError}</p>}
         <button onClick={handleSaveDetails} disabled={!canSaveDetails || savingDetails}>
           {savingDetails ? 'Saving…' : 'Save Details'}
         </button>

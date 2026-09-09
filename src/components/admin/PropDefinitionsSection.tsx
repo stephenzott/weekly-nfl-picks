@@ -108,7 +108,7 @@ export function PropDefinitionsSection({ weekId }: PropDefinitionsSectionProps) 
           {submitting ? 'Adding…' : 'Add Prop'}
         </button>
         {!canSubmit && (propType.trim() || description.trim() || line || choicesInput) && (
-          <p style={{ color: 'red' }}>Enter either a line, or at least 2 comma-separated choices — not both.</p>
+          <p className="error-text">Enter either a line, or at least 2 comma-separated choices — not both.</p>
         )}
       </form>
 

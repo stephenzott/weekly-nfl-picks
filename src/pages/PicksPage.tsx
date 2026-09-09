@@ -26,16 +26,16 @@ export function PicksPage() {
 
   if (!currentUser) {
     return (
-      <div>
-        <h1>Weekly Picks</h1>
+      <div className="page">
+        <h2>Weekly Picks</h2>
         <UserSelect users={users} onSelect={setCurrentUserId} />
       </div>
     )
   }
 
   return (
-    <div>
-      <h1>Weekly Picks</h1>
+    <div className="page">
+      <h2>Weekly Picks</h2>
       <p>
         Picking as <strong>{currentUser.name}</strong>{' '}
         <button onClick={() => setCurrentUserId(null)}>(not you?)</button>

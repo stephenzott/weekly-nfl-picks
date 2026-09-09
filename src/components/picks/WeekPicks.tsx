@@ -154,14 +154,14 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
   return (
     <div>
       {isOverBudget && (
-        <p style={{ color: 'red', fontWeight: 'bold' }}>
+        <p className="error-text" style={{ fontWeight: 'bold' }}>
           This week has {entries.length} required picks/props, but the ${week.budget} budget only
           supports up to {maxSupportableEntries} at the ${MIN_STAKE} minimum stake each. No pick
           can be saved until an admin removes some games/props from this week or increases its
           budget.
         </p>
       )}
-      <BudgetSummary budget={week.budget} myPicks={myPicks} myProps={myProps} />
+      <div className="ledger">
       {slotEntries.map((entry) => {
         if (entry.kind !== 'pick') return null // narrows the union for TypeScript below
         const { slot, existingPick } = entry
@@ -238,6 +238,8 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
           />
         )
       })}
+      </div>
+      <BudgetSummary budget={week.budget} myPicks={myPicks} myProps={myProps} />
 
       <hr />
       <RevealedPicks games={games} allPicks={allPicks} now={now} />

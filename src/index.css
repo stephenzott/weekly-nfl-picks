@@ -1,8 +1,101 @@
-/* Minimal global styles — a starting point, not final design (see roadmap
-   step 10: "Responsive polish" comes after the features are built). */
+/* Visual design per STYLE_GUIDE.md — "Luke's Annual $10 Donation," a
+   1970s-80s Vegas tout-sheet look. This file holds the shared foundation
+   (color tokens, fonts, base resets, masthead/nav) plus a handful of
+   reusable utility classes (ledger layout, perforated dividers, rubber-
+   stamp badges) that individual components apply via className — kept
+   here in one global stylesheet rather than split into CSS Modules per
+   component, since a plain shared file is easier to keep consistent with
+   a small, fixed set of design tokens like this.
+
+   Fonts (Courier Prime, IBM Plex Sans) are loaded via <link> tags in
+   index.html, not here — CSS @import would block rendering until fully
+   fetched, whereas the HTML <link> can be discovered and fetched by the
+   browser before any of this stylesheet even runs. */
+
 :root {
+  /* Tells the browser both light AND dark variants are supported, so
+     built-in form controls (checkboxes, scrollbars, etc.) pick a matching
+     native appearance automatically instead of always defaulting to
+     light. This was already here before the redesign. */
   color-scheme: light dark;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  /* ---- STYLE_GUIDE.md "Color" table, light mode ---- */
+  --paper: #f0ead8;
+  --ink-body: #3a3529;
+  --money-green: #2f5233;
+  --loss-rust: #8b5a3c;
+  --hairline: #c9c2a8;
+
+  /* Semantic aliases — components should reference THESE, not the raw
+     tokens above, so the dark-mode override below only has to redefine
+     these few names to re-theme the entire app. */
+  --bg: var(--paper);
+  --fg: var(--ink-body);
+  --border: var(--hairline);
+  --accent: var(--money-green);
+  --negative: var(--loss-rust);
+  /* --accent/--negative as TEXT drawn directly on --bg (links, focus
+     ring, .money-pos/.money-neg, stamp badges) needs its own alias,
+     separate from the same tokens used as a BUTTON's filled background
+     (which always pairs with --paper text and stays legible regardless
+     of page theme). Measured against paper (#F0EAD8): money-green is
+     7.35:1 and loss-rust is 4.82:1 — both already clear WCAG AA's 4.5:1
+     text-contrast minimum, so light mode just points these at the same
+     base tokens. Dark mode (below) points them at brighter variants
+     instead, since the base tokens are far too dark to read as text on
+     a near-black background (money-green measured only 1.97:1 there). */
+  --accent-text: var(--accent);
+  --negative-text: var(--negative);
+  /* Also its own alias for form-control borders: STYLE_GUIDE.md's
+     --hairline is deliberately soft (1.48:1 on paper) for decorative
+     dividers, but WCAG 1.4.11 wants UI component boundaries like input
+     borders at 3:1 minimum so they're actually perceivable as a
+     boundary. */
+  --border-strong: #8a8266;
+  /* A slightly muted/secondary text tone for meta info (timestamps,
+     helper text) — derived from --fg via opacity at the point of use
+     rather than a separate hard-coded hex, so it stays correct if the
+     base ink tone ever changes. */
+
+  /* ---- STYLE_GUIDE.md "Type": two families, never mixed ---- */
+  --font-type: 'Courier Prime', 'Courier New', monospace;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+
+  /* Restrained 4-size scale: masthead/display, section header, body,
+     small/meta — deliberately not a full type-ramp. `clamp()` lets the
+     masthead size respond to viewport width without a separate media
+     query (standard CSS practice for fluid type: min, preferred-vw,
+     max). */
+  --text-display: clamp(1.65rem, 4vw + 1rem, 2.75rem);
+  --text-header: 1.05rem;
+  --text-body: 1rem;
+  --text-meta: 0.82rem;
+}
+
+/* STYLE_GUIDE.md: "Dark mode is not an inverted light mode — it should
+   feel like the night-game version of the same sheet." Same warm tones,
+   near-black base instead of cream — achieved by only overriding the
+   semantic aliases, so every component that uses var(--bg)/var(--fg)
+   picks this up automatically with no per-component dark-mode code. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink-dark: #1c1a16;
+    --ink-body-dark: #e4dcc8;
+    --hairline-dark: #4a4436;
+
+    --bg: var(--ink-dark);
+    --fg: var(--ink-body-dark);
+    --border: var(--hairline-dark);
+    /* Brighter than the base --money-green/--loss-rust tokens
+       specifically so they're readable as TEXT against the near-black
+       background (5.74:1 and 5.33:1 against ink-dark, respectively —
+       both clear WCAG AA) while --accent/--negative themselves stay the
+       deep/muted tones for button backgrounds, unchanged from light
+       mode. */
+    --accent-text: #5fa36b;
+    --negative-text: #c08050;
+    --border-strong: #6e6650;
+  }
 }
 
 * {
@@ -12,9 +105,413 @@
 body {
   margin: 0;
   min-height: 100svh;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  /* iOS Safari bumps font sizes up on rotate unless told not to — a
+     standard mobile-web fix, unrelated to this app's own type scale. */
+  -webkit-text-size-adjust: 100%;
 }
 
 #root {
   max-width: 100%;
   min-height: 100svh;
+}
+
+/* Quality floor (STYLE_GUIDE.md): visible keyboard focus everywhere.
+   :focus-visible (rather than plain :focus) shows the ring for keyboard
+   tabbing but not for a mouse click — standard modern-browser practice
+   for "don't annoy mouse users, but never hide focus from keyboard
+   users." */
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+a {
+  color: var(--accent-text);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-type);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+h1 {
+  font-size: var(--text-header);
+  text-transform: uppercase;
+}
+
+h2,
+h3 {
+  font-size: var(--text-body);
+  text-transform: uppercase;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
+
+button {
+  font-family: var(--font-type);
+  font-size: var(--text-meta);
+  letter-spacing: 0.02em;
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  border-radius: 3px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: var(--border);
+  color: var(--fg);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 6px 8px;
+}
+
+label {
+  font-size: var(--text-meta);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* Quality floor: "fully responsive down to mobile." Several tables in
+   this app (games list, revealed picks/props, standings) have 6-8
+   columns — too many to reflow into a single phone-width column without
+   a much bigger redesign. Instead, each is wrapped in one of these so
+   ONLY the table scrolls horizontally on a narrow screen, rather than
+   the whole page. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+th {
+  font-family: var(--font-type);
+  text-transform: uppercase;
+  font-size: var(--text-meta);
+  letter-spacing: 0.02em;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 8px;
+}
+
+td {
+  font-size: var(--text-body);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 8px;
+}
+
+/* ============================================================
+   Masthead — STYLE_GUIDE.md's "one hero moment." Bold and textured;
+   everything else in the app stays quiet by comparison, so this is
+   the ONLY place that gets a filled background + display-size type.
+   ============================================================ */
+.masthead {
+  background: var(--ink-body);
+  color: var(--paper);
+  padding: 20px 16px 16px;
+  text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+  .masthead {
+    background: #0f0e0b;
+    color: var(--ink-body-dark);
+  }
+}
+
+.masthead__title {
+  font-family: var(--font-type);
+  font-weight: 700;
+  font-size: var(--text-display);
+  letter-spacing: 0.03em;
+  margin: 0;
+  text-transform: uppercase;
+  /* A faint text-shadow doubling as "carbon-copy ghosting" — a subtle
+     nod to a duplicate order-form sheet, not a heavy drop-shadow effect. */
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.masthead__subtitle {
+  font-family: var(--font-type);
+  font-size: var(--text-meta);
+  opacity: 0.7;
+  margin: 6px 0 0;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ---- Nav ---- */
+.nav {
+  display: flex;
+  gap: 4px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-type);
+  overflow-x: auto;
+}
+
+.nav a {
+  color: var(--fg);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 3px;
+  font-size: var(--text-meta);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.nav a.active {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+.nav a:hover:not(.active) {
+  background: var(--border);
+}
+
+.page {
+  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ============================================================
+   Ledger layout — STYLE_GUIDE.md's "carbon-copy order form" concept.
+   Each pick slot / standings row is one .ledger-item: typewriter label
+   on the left, sans-serif detail in the middle, control/value on the
+   right. A dashed "perforation" divider separates items, echoing the
+   tear-line on a real paper form.
+   ============================================================ */
+.ledger {
+  display: flex;
+  flex-direction: column;
+}
+
+.ledger-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding: 14px 0;
+}
+
+/* The perforation itself: a repeating dashed border between consecutive
+   items, so the stack reads as torn-apart order-form lines rather than a
+   plain list. An adjacent-sibling selector (+) means the FIRST item in
+   any stack automatically has no top border (nothing precedes it) — no
+   need for each caller to special-case "skip the divider on the last
+   one" the way a manually-inserted <hr> would require. */
+.ledger-item + .ledger-item {
+  border-top: 1px dashed var(--border);
+}
+
+.ledger-item--muted {
+  opacity: 0.6;
+}
+
+.ledger-label {
+  font-family: var(--font-type);
+  font-size: var(--text-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex: 0 0 auto;
+  min-width: 8rem;
+}
+
+.ledger-detail {
+  flex: 1 1 240px;
+  font-family: var(--font-body);
+}
+
+.ledger-control {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* Below ~600px (a phone in portrait), the stake input + Save button no
+   longer have room to sit flush right of the pick's radio/checkbox
+   content on the same visual line — flex-wrap drops them to their own
+   line, but margin-left:auto would still shove that line over to the
+   right edge with an odd gap. Reset to a normal left-aligned, full-width
+   row instead, so it reads as the natural next line of the form rather
+   than a stray floating control. */
+@media (max-width: 700px) {
+  .ledger-control {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 4px;
+  }
+}
+
+/* True phone width (this dev environment's tooling couldn't render
+   narrower than ~600px CSS to verify directly — do the math instead of
+   trusting it): .ledger-label's 8rem (128px) min-width plus
+   .ledger-detail's 240px flex-basis is 368px before gaps, which already
+   exceeds a 390px-wide phone's usable content width after page padding.
+   flex-wrap would technically still handle that (a flex item that
+   doesn't fit just drops to its own line), but that's an incidental
+   side effect, not a deliberate layout — stack label/detail/control
+   explicitly instead, so the "carbon-copy order form" reads as one
+   clean top-to-bottom column on a real phone rather than relying on
+   unverified wrap behavior. */
+@media (max-width: 480px) {
+  .ledger-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ledger-label {
+    min-width: 0;
+  }
+}
+
+.ledger-total {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 0 4px;
+  font-family: var(--font-type);
+  font-size: var(--text-header);
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+/* ============================================================
+   Money formatting — green for positive/wins, rust for negative/losses.
+   Applied via className, e.g. <span className={net >= 0 ? 'money-pos' :
+   'money-neg'}>.
+   ============================================================ */
+/* Standings: player names in the typewriter face (the "label," per
+   STYLE_GUIDE.md's ledger-line treatment), everything else in the row
+   (rank number, $, record) stays the default sans-serif for fast
+   scanning. */
+.name-cell {
+  font-family: var(--font-type);
+  text-transform: uppercase;
+  font-size: var(--text-meta);
+  letter-spacing: 0.02em;
+}
+
+.money-pos {
+  color: var(--accent-text);
+}
+
+.money-neg {
+  color: var(--negative-text);
+}
+
+.meta {
+  font-size: var(--text-meta);
+  opacity: 0.75;
+}
+
+/* Inline status tags next to a ledger label ("saved", "locked") — plain
+   meta-toned text, deliberately NOT styled like the rubber-stamp result
+   badges below (those are reserved for actual settled win/loss/push
+   results per STYLE_GUIDE.md, not every UI state). */
+.pick-status {
+  font-family: var(--font-body);
+  font-size: var(--text-meta);
+  opacity: 0.7;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* STYLE_GUIDE.md: errors use the loss-rust tone (not a generic red) to
+   stay inside the app's warm palette. */
+.error-text {
+  color: var(--negative-text);
+  font-size: var(--text-meta);
+  margin: 6px 0 0;
+}
+
+/* ============================================================
+   Rubber-stamp result badges — STYLE_GUIDE.md's one decorative
+   flourish, used ONLY on settled picks (WIN/LOSS/PUSH). A slight
+   rotation + double-exposed text-shadow reads as ink-bleed from a real
+   stamp rather than a generic status pill.
+   ============================================================ */
+.stamp {
+  display: inline-block;
+  font-family: var(--font-type);
+  font-weight: 700;
+  font-size: var(--text-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+  transform: rotate(-4deg);
+  text-shadow: 0.5px 0.5px 0 currentColor;
+}
+
+.stamp--win {
+  color: var(--accent-text);
+}
+
+.stamp--loss {
+  color: var(--negative-text);
+}
+
+.stamp--push {
+  color: var(--fg);
+}
+
+/* STYLE_GUIDE.md "Motion": the one deliberate animated moment — a stamp
+   "hitting" the paper when a pick settles. `animation-fill-mode: both`
+   so the stamp starts from the animation's 0% state (scaled up/rotated
+   further) instead of flashing at its final rotate(-4deg) for one frame
+   before the animation takes over. */
+@keyframes stamp-down {
+  0% {
+    transform: rotate(8deg) scale(1.6);
+    opacity: 0;
+  }
+  60% {
+    transform: rotate(-6deg) scale(0.95);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(-4deg) scale(1);
+    opacity: 1;
+  }
+}
+
+.stamp--animate {
+  animation: stamp-down 0.35s ease-out both;
+}
+
+/* Quality floor: respect prefers-reduced-motion — the stamp still
+   appears, just without the scale/rotate flourish. */
+@media (prefers-reduced-motion: reduce) {
+  .stamp--animate {
+    animation: none;
+  }
 }

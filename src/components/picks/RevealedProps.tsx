@@ -1,5 +1,6 @@
 import { useUsers } from '../../hooks/useUsers'
 import type { PropDefinition, SuperBowlProp } from '../../types'
+import { ResultStamp } from './ResultStamp'
 
 interface RevealedPropsProps {
   propDefs: PropDefinition[]
@@ -35,26 +36,30 @@ export function RevealedProps({ propDefs, allProps, locked }: RevealedPropsProps
             {picksForProp.length === 0 ? (
               <p>No one picked this prop.</p>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Player</th>
-                    <th>Pick</th>
-                    <th>Stake</th>
-                    <th>Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {picksForProp.map((prop) => (
-                    <tr key={prop.id}>
-                      <td>{userName(prop.userId)}</td>
-                      <td>{prop.pick}</td>
-                      <td>${prop.stake}</td>
-                      <td>{prop.result}</td>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Pick</th>
+                      <th>Stake</th>
+                      <th>Result</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {picksForProp.map((prop) => (
+                      <tr key={prop.id}>
+                        <td>{userName(prop.userId)}</td>
+                        <td>{prop.pick}</td>
+                        <td>${prop.stake}</td>
+                        <td>
+                          <ResultStamp result={prop.result} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )

@@ -93,7 +93,7 @@ export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProp
     <form onSubmit={handleSubmit}>
       <h3>Add a Game</h3>
       {atMaxGames && (
-        <p style={{ color: 'red' }}>
+        <p className="error-text">
           This week already has {cappedGamesCount} games — regular season weeks are capped at{' '}
           {MAX_REGULAR_SEASON_GAMES} total (including Bonus games). Edit or remove an existing game
           instead of adding another.

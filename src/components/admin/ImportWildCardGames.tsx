@@ -157,7 +157,7 @@ export function ImportWildCardGames({ weekId, existingGames }: ImportWildCardGam
       {hasKey && existingGames.length > 0 && remainingSlots <= 0 && (
         <span>(this week is already at the {MAX_REGULAR_SEASON_GAMES}-game cap)</span>
       )}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className="error-text">{error}</p>}
 
       {candidates && candidates.length === 0 && (
         <p>No other games found near this week's dates — everything nearby is already added.</p>

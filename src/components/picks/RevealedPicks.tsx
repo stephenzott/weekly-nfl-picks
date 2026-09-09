@@ -1,5 +1,6 @@
 import { useUsers } from '../../hooks/useUsers'
 import type { Game, Pick } from '../../types'
+import { ResultStamp } from './ResultStamp'
 
 interface RevealedPicksProps {
   games: Game[]
@@ -41,34 +42,43 @@ export function RevealedPicks({ games, allPicks, now }: RevealedPicksProps) {
             {picksForGame.length === 0 ? (
               <p>No one picked this game.</p>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Player</th>
-                    <th>Pick Type</th>
-                    <th>Spread</th>
-                    <th>Stake</th>
-                    <th>Result</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {picksForGame.map((pick) => (
-                    <tr key={pick.id} style={pick.isDefaultLoss ? { opacity: 0.6 } : undefined}>
-                      <td>{userName(pick.userId)}</td>
-                      <td>{pick.isDefaultLoss ? 'No Pick' : pick.pickType}</td>
-                      <td>{pick.isDefaultLoss ? '—' : pick.spreadSide}</td>
-                      <td>${pick.spreadStake}</td>
-                      <td>{pick.result}</td>
-                      <td>
-                        {pick.isDefaultLoss || !pick.totalSide
-                          ? '—'
-                          : `${pick.totalSide} ($${pick.totalStake}) — ${pick.totalResult}`}
-                      </td>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Pick Type</th>
+                      <th>Spread</th>
+                      <th>Stake</th>
+                      <th>Result</th>
+                      <th>Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {picksForGame.map((pick) => (
+                      <tr key={pick.id} style={pick.isDefaultLoss ? { opacity: 0.6 } : undefined}>
+                        <td>{userName(pick.userId)}</td>
+                        <td>{pick.isDefaultLoss ? 'No Pick' : pick.pickType}</td>
+                        <td>{pick.isDefaultLoss ? '—' : pick.spreadSide}</td>
+                        <td>${pick.spreadStake}</td>
+                        <td>
+                          <ResultStamp result={pick.result} />
+                        </td>
+                        <td>
+                          {pick.isDefaultLoss || !pick.totalSide || !pick.totalResult ? (
+                            '—'
+                          ) : (
+                            <>
+                              {pick.totalSide} (${pick.totalStake}){' '}
+                              <ResultStamp result={pick.totalResult} />
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )

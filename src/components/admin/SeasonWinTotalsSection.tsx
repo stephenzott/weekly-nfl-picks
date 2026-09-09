@@ -141,12 +141,12 @@ export function SeasonWinTotalsSection() {
           </p>
         )}
         {userId && wouldExceedBudget && !selectedUserIsFull && (
-          <p style={{ color: 'red' }}>
+          <p className="error-text">
             That stake is more than the ${maxStakeForThisBet} available for this bet right now.
           </p>
         )}
         {selectedUserIsFull && (
-          <p style={{ color: 'red' }}>
+          <p className="error-text">
             {users.find((u) => u.id === userId)?.name} already has {SEASON_WIN_TOTAL_REQUIRED_BETS}{' '}
             season win total bets.
           </p>
