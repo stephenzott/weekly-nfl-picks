@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AddGameForm } from '../components/admin/AddGameForm'
 import { AddWeekForm } from '../components/admin/AddWeekForm'
 import { EditGameForm } from '../components/admin/EditGameForm'
+import { EditPicksSection } from '../components/admin/EditPicksSection'
 import { FetchOddsButton } from '../components/admin/FetchOddsButton'
 import { GamesList } from '../components/admin/GamesList'
 import { HighSpreadPicker } from '../components/admin/HighSpreadPicker'
@@ -76,6 +77,8 @@ export function AdminPage() {
             <HighSpreadPicker week={selectedWeek} games={games} picksInWeek={picksInWeek} />
           )}
           <GamesList games={games} onEdit={setEditingGameId} />
+
+          <EditPicksSection games={games} picksInWeek={picksInWeek} />
 
           <hr />
           {/* Props are only relevant during Super Bowl week, but there's no

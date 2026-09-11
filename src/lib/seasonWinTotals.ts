@@ -1,7 +1,7 @@
 import { addDoc, collection, doc, onSnapshot, query, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
 import { settleSeasonWinTotal } from './settlement'
-import type { SeasonWinTotal } from '../types'
+import type { SeasonWinTotal, WinTotalSide } from '../types'
 
 // Unlike weeks/games/picks, season win totals aren't scoped to a
 // particular week — PROJECT_SPEC.md Section 4.4 is explicit that this is
@@ -43,4 +43,22 @@ export async function updateSeasonWinTotalActualWins(
 ): Promise<void> {
   const result = settleSeasonWinTotal({ ...bet, actualWins })
   await updateDoc(doc(db, 'seasonWinTotals', bet.id), { actualWins, result })
+}
+
+// Admin correction path (src/components/admin/SeasonWinTotalsSection.tsx)
+// for when the bet itself was entered wrong (team/line/side/stake) —
+// distinct from updateSeasonWinTotalActualWins above, which corrects the
+// real-world OUTCOME once the season's over. If `actualWins` was already
+// entered, this re-settles `result` against the corrected line/side right
+// away (same "re-run the pure settlement function" idea as
+// settleWeekPicks) — otherwise it stays 'pending' as before.
+export async function updateSeasonWinTotalDetails(
+  bet: SeasonWinTotal,
+  updates: { team: string; line: number; side: WinTotalSide; stake: number },
+): Promise<void> {
+  const result =
+    bet.actualWins == null
+      ? bet.result
+      : settleSeasonWinTotal({ ...bet, ...updates, actualWins: bet.actualWins })
+  await updateDoc(doc(db, 'seasonWinTotals', bet.id), { ...updates, result })
 }

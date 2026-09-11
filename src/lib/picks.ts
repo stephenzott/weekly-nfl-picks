@@ -89,3 +89,24 @@ export async function updatePickResult(
 ): Promise<void> {
   await updateDoc(doc(db, 'picks', pickId), { result, totalResult })
 }
+
+// Admin correction path (src/components/admin/EditPicksSection.tsx) for a
+// pick that's already locked (kickoff passed) — the lock in PickSlot.tsx is
+// UI-only, so a normal user has no way back in, but a mistake (wrong
+// side, wrong stake) still needs to be fixable. Deliberately does NOT
+// touch `result`/`totalResult` here: whichever game this pick belongs to
+// gets re-settled the normal self-healing way (settleWeekPicks, next time
+// anyone views Week Picks/Standings, or the next scheduled score-update
+// Action run) — same "don't duplicate settlement logic in two places"
+// reasoning as EditGameForm's score correction.
+export async function updatePickDetails(
+  pickId: string,
+  updates: {
+    spreadSide: string
+    spreadStake: number
+    totalSide: Pick['totalSide']
+    totalStake: Pick['totalStake']
+  },
+): Promise<void> {
+  await updateDoc(doc(db, 'picks', pickId), updates)
+}

@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { useSeasonWinTotals } from '../../hooks/useSeasonWinTotals'
 import { useUsers } from '../../hooks/useUsers'
 import { MIN_STAKE, SEASON_WIN_TOTAL_BUDGET, SEASON_WIN_TOTAL_REQUIRED_BETS } from '../../lib/constants'
-import { addSeasonWinTotal, updateSeasonWinTotalActualWins } from '../../lib/seasonWinTotals'
+import {
+  addSeasonWinTotal,
+  updateSeasonWinTotalActualWins,
+  updateSeasonWinTotalDetails,
+} from '../../lib/seasonWinTotals'
 import type { SeasonWinTotal, WinTotalSide } from '../../types'
 
 export function SeasonWinTotalsSection() {
@@ -164,6 +168,7 @@ export function SeasonWinTotalsSection() {
               <th>Stake</th>
               <th>Actual Wins</th>
               <th>Result</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -196,6 +201,17 @@ function SeasonWinTotalRow({
   const [actualWinsInput, setActualWinsInput] = useState(bet.actualWins != null ? String(bet.actualWins) : '')
   const [saving, setSaving] = useState(false)
 
+  // Separate from `editingDetails` below: entering the season's real
+  // outcome (actualWins) and correcting a bet that was typed in wrong
+  // (team/line/side/stake) are different actions, so they get independent
+  // edit states rather than sharing one "editing" flag.
+  const [editingDetails, setEditingDetails] = useState(false)
+  const [team, setTeam] = useState(bet.team)
+  const [line, setLine] = useState(String(bet.line))
+  const [side, setSide] = useState<WinTotalSide>(bet.side)
+  const [stake, setStake] = useState(String(bet.stake))
+  const [savingDetails, setSavingDetails] = useState(false)
+
   async function handleSaveActualWins() {
     if (actualWinsInput === '') return
     setSaving(true)
@@ -209,6 +225,75 @@ function SeasonWinTotalRow({
     } finally {
       setSaving(false)
     }
+  }
+
+  const canSaveDetails = team.trim() && line !== '' && Number(stake) >= MIN_STAKE
+
+  async function handleSaveDetails() {
+    if (!canSaveDetails) return
+    setSavingDetails(true)
+    try {
+      await updateSeasonWinTotalDetails(bet, {
+        team: team.trim(),
+        line: Number(line),
+        side,
+        stake: Number(stake),
+      })
+      setEditingDetails(false)
+    } finally {
+      setSavingDetails(false)
+    }
+  }
+
+  function handleCancelDetails() {
+    setTeam(bet.team)
+    setLine(String(bet.line))
+    setSide(bet.side)
+    setStake(String(bet.stake))
+    setEditingDetails(false)
+  }
+
+  if (editingDetails) {
+    return (
+      <tr>
+        <td>{userName}</td>
+        <td>
+          <input type="text" value={team} onChange={(e) => setTeam(e.target.value)} style={{ width: 90 }} />{' '}
+          <input
+            type="number"
+            value={line}
+            onChange={(e) => setLine(e.target.value)}
+            min={0}
+            step={0.5}
+            style={{ width: 60 }}
+          />{' '}
+          <select value={side} onChange={(e) => setSide(e.target.value as WinTotalSide)}>
+            <option value="over">Over</option>
+            <option value="under">Under</option>
+          </select>
+        </td>
+        <td>
+          <input
+            type="number"
+            value={stake}
+            onChange={(e) => setStake(e.target.value)}
+            min={MIN_STAKE}
+            step={1}
+            style={{ width: 60 }}
+          />
+        </td>
+        <td>{bet.actualWins ?? '—'}</td>
+        <td>{bet.result}</td>
+        <td>
+          <button onClick={handleSaveDetails} disabled={!canSaveDetails || savingDetails}>
+            {savingDetails ? 'Saving…' : 'Save'}
+          </button>{' '}
+          <button onClick={handleCancelDetails} disabled={savingDetails}>
+            Cancel
+          </button>
+        </td>
+      </tr>
+    )
   }
 
   return (
@@ -231,6 +316,9 @@ function SeasonWinTotalRow({
         </button>
       </td>
       <td>{bet.result}</td>
+      <td>
+        <button onClick={() => setEditingDetails(true)}>Edit</button>
+      </td>
     </tr>
   )
 }
