@@ -20,11 +20,14 @@ interface EditPicksSectionProps {
 export function EditPicksSection({ games, picksInWeek }: EditPicksSectionProps) {
   const users = useUsers()
 
-  // Missed picks (isDefaultLoss) are permanently spreadSide: '' / result:
-  // 'loss' by definition (PROJECT_SPEC.md Section 4.3) — there's no real
-  // side/stake to correct, so they're left out of this list entirely
-  // rather than offering an edit control that doesn't apply to them.
-  const editablePicks = picksInWeek.filter((p) => !p.isDefaultLoss)
+  // Auto-picks (isAutoPick, src/lib/missedPicks.ts) are real coin-flipped
+  // bets now and are just as editable as a pick the user made themselves
+  // — e.g. an admin overriding the coin flip with what the user actually
+  // meant to pick. The one exception is the rare fallback case where the
+  // game never got a spread set at all (spreadSide stays '', result is
+  // hardcoded 'loss') — there's no real side/stake to correct there, so
+  // it's left out rather than offering an edit control that doesn't apply.
+  const editablePicks = picksInWeek.filter((p) => !(p.isAutoPick && p.spreadSide === ''))
 
   if (editablePicks.length === 0) {
     return null

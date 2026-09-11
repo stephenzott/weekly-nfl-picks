@@ -99,7 +99,15 @@ export interface Pick {
   // spec's original one-`result`-per-pick shape had no way to record two
   // independent outcomes on the same document.
   totalResult: PickResult | null
-  isDefaultLoss: boolean
+  // True when this pick was auto-generated because the user never saved
+  // one before kickoff — src/lib/missedPicks.ts coin-flips a real side
+  // (and, if this is the last slot the user has left this week, a stake
+  // that closes the week out to exactly its budget) rather than the
+  // original "$10 automatic loss" rule, per Stephen (2026-09-11). It still
+  // settles normally (win/loss/push) like any other pick — this flag is
+  // for display only (e.g. RevealedPicks.tsx labeling it "auto-picked"),
+  // not for special-casing settlement or the standings record anymore.
+  isAutoPick: boolean
 }
 
 export type WinTotalSide = 'over' | 'under'

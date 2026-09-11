@@ -16,13 +16,12 @@ interface AddMissingPickSectionProps {
 // saved a pick at all before kickoff. Once that happens, PickSlot's
 // "locked (kickoff passed)" state blocks the normal form, and — if anyone
 // has opened the app since — backfillMissedPicksForWeek (src/lib/
-// missedPicks.ts) has already written a $10 default-loss placeholder for
-// that exact slot. Either way (no doc yet, or a default-loss placeholder),
+// missedPicks.ts) has already written a coin-flipped auto-pick for that
+// exact slot. Either way (no doc yet, or an auto-pick already there),
 // `savePick` writes to the SAME deterministic document ID
 // (userId_weekId_pickType, see src/lib/picks.ts), so using it here both
-// creates the pick if it's missing and overwrites a default-loss
-// placeholder if one already exists — no need to tell those two cases
-// apart first.
+// creates the pick if it's missing and overwrites the auto-pick if one
+// already exists — no need to tell those two cases apart first.
 export function AddMissingPickSection({ week, games, picksInWeek }: AddMissingPickSectionProps) {
   const users = useUsers()
 
@@ -69,10 +68,10 @@ export function AddMissingPickSection({ week, games, picksInWeek }: AddMissingPi
   }
 
   // Pre-fills from whatever's already saved for this slot (a real pick or
-  // a default-loss placeholder) once enough is selected to know which
-  // pick that is — lets the admin see/adjust rather than starting blank
-  // every time, and makes "fix a default-loss placeholder" and "add a
-  // pick that was never saved" look like the exact same action.
+  // a coin-flip auto-pick) once enough is selected to know which pick that
+  // is — lets the admin see/adjust rather than starting blank every time,
+  // and makes "override the coin flip" and "add a pick that was never
+  // saved" look like the exact same action.
   function loadExisting() {
     if (!existingForSlot) return
     if (existingForSlot.spreadSide) setSpreadSide(existingForSlot.spreadSide)
@@ -103,7 +102,7 @@ export function AddMissingPickSection({ week, games, picksInWeek }: AddMissingPi
         // fills in the real result from here.
         result: 'pending',
         totalResult: totalSide === '' ? null : 'pending',
-        isDefaultLoss: false,
+        isAutoPick: false,
       })
       setStatus(`Saved ${selectedSlot.label} for ${users.find((u) => u.id === userId)?.name ?? userId}.`)
       setSpreadSide('')
@@ -118,8 +117,8 @@ export function AddMissingPickSection({ week, games, picksInWeek }: AddMissingPi
     <div>
       <h3>Add a Missing Pick</h3>
       <p>
-        For a pick that was never saved before kickoff (including one already backfilled as a $10
-        default loss) — fills it in as a real pick instead.
+        For a pick that was never saved before kickoff (including one already backfilled as a
+        coin-flip auto-pick) — lets you fill in what the user actually meant to pick instead.
       </p>
       <div>
         <label>
@@ -162,7 +161,7 @@ export function AddMissingPickSection({ week, games, picksInWeek }: AddMissingPi
         <div>
           {existingForSlot && (
             <p>
-              {existingForSlot.isDefaultLoss ? 'Currently a $10 default-loss placeholder.' : 'Already has a real pick saved.'}{' '}
+              {existingForSlot.isAutoPick ? 'Currently a coin-flip auto-pick.' : 'Already has a real pick saved.'}{' '}
               <button type="button" onClick={loadExisting}>
                 Load it to edit
               </button>

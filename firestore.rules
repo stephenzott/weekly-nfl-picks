@@ -108,15 +108,18 @@ service cloud.firestore {
 
     // --- picks ---
     function isValidPick(data) {
-      return data.keys().hasAll(['userId', 'gameId', 'weekId', 'pickType', 'spreadSide', 'spreadStake', 'totalSide', 'totalStake', 'result', 'totalResult', 'isDefaultLoss'])
+      return data.keys().hasAll(['userId', 'gameId', 'weekId', 'pickType', 'spreadSide', 'spreadStake', 'totalSide', 'totalStake', 'result', 'totalResult', 'isAutoPick'])
         && data.userId is string && data.userId.size() > 0
         && data.gameId is string && data.gameId.size() > 0
         && data.weekId is string && data.weekId.size() > 0
         && data.pickType in ['AM', 'PM', 'SNF', 'MNF', 'WildCard', 'HighSpread', 'Bonus', 'Playoff']
         && data.spreadSide is string
-        // Missed picks (isDefaultLoss: true) intentionally save spreadSide
-        // as '' — see src/lib/missedPicks.ts — so this deliberately does
-        // NOT require spreadSide.size() > 0.
+        // A coin-flipped auto-pick (isAutoPick: true, src/lib/missedPicks.ts)
+        // normally has a real spreadSide like any other pick — it's only
+        // ever '' in the rare fallback case where the game never got a
+        // spread set at all, so there was no side to flip a coin for. This
+        // deliberately does NOT require spreadSide.size() > 0 to allow for
+        // that fallback.
         && data.spreadStake is number && data.spreadStake >= 10
         && (data.totalSide == null || data.totalSide in ['over', 'under'])
         // PROJECT_SPEC.md Section 4.3: the total's stake always mirrors
@@ -126,10 +129,11 @@ service cloud.firestore {
         && isPickResult(data.result)
         && (data.totalResult == null || isPickResult(data.totalResult))
         && (data.totalSide != null || data.totalResult == null)
-        && data.isDefaultLoss is bool
-        // PROJECT_SPEC.md Section 4.3: a missed pick is always an
-        // automatic LOSS, never a real result waiting to be settled.
-        && (!data.isDefaultLoss || data.result == 'loss');
+        && data.isAutoPick is bool;
+        // Per Stephen (2026-09-11): unlike the old "isDefaultLoss" rule,
+        // an auto-pick is a real coin-flipped bet that settles normally —
+        // win, loss, or push — so there's no longer a rule forcing
+        // result == 'loss' just because isAutoPick is true.
     }
     match /picks/{pickId} {
       allow read: if true;

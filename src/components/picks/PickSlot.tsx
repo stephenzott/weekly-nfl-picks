@@ -12,8 +12,9 @@ interface PickSlotProps {
   userId: string
   // This user's already-saved pick for this slot, if any — used to
   // pre-fill the form so re-opening the app shows what you already picked.
-  // May be a real pick OR a system-generated default-loss pick backfilled
-  // by src/lib/missedPicks.ts after this user missed the deadline.
+  // May be a real pick OR a system-generated coin-flip auto-pick
+  // backfilled by src/lib/missedPicks.ts after this user missed the
+  // deadline.
   existingPick: Pick | undefined
   // The week's total budget (almost always $120) and how much of it this
   // user has already committed to OTHER slots — used to enforce the budget
@@ -174,7 +175,7 @@ export function PickSlot({
         // editable.
         result: 'pending',
         totalResult: totalEnabled ? 'pending' : null,
-        isDefaultLoss: false,
+        isAutoPick: false,
         pickType: slot.pickType,
       })
     } finally {
@@ -182,13 +183,17 @@ export function PickSlot({
     }
   }
 
-  // A backfilled default-loss pick (src/lib/missedPicks.ts) isn't
-  // something to edit — PROJECT_SPEC.md Section 4.3 asks for it to
-  // "display differently in the UI (e.g., grayed out, labeled 'No
-  // Pick')," so it gets its own compact, read-only rendering instead of
-  // the normal side/stake/total form (which would otherwise show empty,
-  // disabled controls that don't explain themselves).
-  if (existingPick?.isDefaultLoss) {
+  // A backfilled auto-pick (src/lib/missedPicks.ts) isn't something to
+  // edit — PROJECT_SPEC.md Section 4.3 asks for a missed pick to "display
+  // differently in the UI (e.g., grayed out, labeled)," so it gets its
+  // own compact, read-only rendering instead of the normal side/stake/
+  // total form. Per Stephen (2026-09-11): a missed pick is now a real
+  // coin-flipped bet (side + stake, settled normally), not an automatic
+  // $10 loss, so this shows what was actually picked rather than hiding
+  // it behind "No Pick." The rare fallback case (spreadSide '', when the
+  // game never got a spread set — see missedPicks.ts) still reads as a
+  // true no-pick loss.
+  if (existingPick?.isAutoPick) {
     const missedGame =
       slot.kind === 'fixedGame'
         ? slot.game
@@ -198,7 +203,11 @@ export function PickSlot({
       <div className="ledger-item ledger-item--muted">
         <div className="ledger-label">{slot.label}</div>
         <div className="ledger-detail">
-          <span className="error-text">No Pick — missed, automatic $10 loss</span>
+          <span className="error-text">
+            {existingPick.spreadSide
+              ? `Missed — auto-picked (coin flip): ${existingPick.spreadSide} for $${existingPick.spreadStake}`
+              : 'No Pick — missed, automatic $10 loss'}
+          </span>
           {matchupLabel && <div className="meta">{matchupLabel}</div>}
         </div>
       </div>

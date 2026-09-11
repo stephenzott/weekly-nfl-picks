@@ -19,11 +19,17 @@ export async function settleWeekPicks(games: Game[], allPicks: Pick[]): Promise<
   const gamesById = new Map(finalGames.map((g) => [g.id, g]))
 
   for (const pick of allPicks) {
-    // Default-loss picks are already permanently 'loss'/null by
-    // definition (PROJECT_SPEC.md Section 4.3) — there's no game outcome
-    // to derive them from, and settlePick would just return 'pending'
-    // for a pick with an empty spreadSide anyway.
-    if (pick.isDefaultLoss) continue
+    // Per Stephen (2026-09-11): auto-picks (isAutoPick: true — coin-flipped
+    // missed picks, src/lib/missedPicks.ts) are real bets now and settle
+    // exactly like any other pick, so there's no longer a skip for them
+    // here. The one remaining fallback case (no spread was ever set, so
+    // missedPicks.ts couldn't flip a coin) still has spreadSide: '' and
+    // result already hardcoded to 'loss' — settleSpread would just return
+    // 'pending' for it below (no game.spread to match against isn't
+    // actually the guard; an empty spreadSide simply never matches either
+    // team), which would incorrectly overwrite that hardcoded loss, so
+    // that one case is skipped explicitly instead.
+    if (pick.isAutoPick && pick.spreadSide === '') continue
 
     const game = gamesById.get(pick.gameId)
     if (!game) continue

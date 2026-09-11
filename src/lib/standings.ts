@@ -41,16 +41,16 @@ export interface PickRecord {
 // The "record against the spread" (PROJECT_SPEC.md Section 4.9) counts only
 // the SPREAD leg's result (pick.result), not the mirrored total leg — the
 // total is money-only, it doesn't have its own "bragging rights" record.
-// Per Stephen (2026-09-07): default-loss picks (missed picks) are excluded
-// entirely from this record, even though they DO still cost $10 in the net
-// $ totals below — the record is meant to reflect picks a user actually
-// made, not games they missed. Season Win Totals and Props aren't part of
-// this record at all — it's specifically the weekly spread-pick record,
-// matching the spec's "bragging rights" example.
+// Per Stephen (2026-09-07), UPDATED 2026-09-11: missed picks used to be
+// excluded from this record entirely (they were an automatic loss, not a
+// real bet). Now that a missed pick is a coin-flipped auto-pick that
+// settles normally — see src/lib/missedPicks.ts — it counts toward the
+// record just like any other pick. Season Win Totals and Props still
+// aren't part of this record at all — it's specifically the weekly
+// spread-pick record, matching the spec's "bragging rights" example.
 function tallyRecord(picks: Pick[]): PickRecord {
   const record: PickRecord = { wins: 0, losses: 0, pushes: 0 }
   for (const pick of picks) {
-    if (pick.isDefaultLoss) continue
     if (pick.result === 'win') record.wins += 1
     else if (pick.result === 'loss') record.losses += 1
     else if (pick.result === 'push') record.pushes += 1

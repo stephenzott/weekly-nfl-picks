@@ -215,10 +215,12 @@ let picksSettled = 0
 for (const docSnap of allPicksSnapshot.docs) {
   const pick = { id: docSnap.id, ...docSnap.data() }
 
-  // Default-loss (missed) picks are already permanently 'loss'/null by
-  // definition (PROJECT_SPEC.md Section 4.3) — no game outcome to derive
-  // them from.
-  if (pick.isDefaultLoss) continue
+  // Coin-flip auto-picks (isAutoPick, src/lib/missedPicks.ts) settle
+  // normally like any other pick now (Stephen, 2026-09-11) — the one
+  // exception is the rare fallback where the game never got a spread set
+  // at all, which still has spreadSide '' and a hardcoded 'loss' that
+  // shouldn't be overwritten (see the matching skip in settleWeek.ts).
+  if (pick.isAutoPick && pick.spreadSide === '') continue
 
   const game = finalGamesById.get(pick.gameId)
   if (!game) continue

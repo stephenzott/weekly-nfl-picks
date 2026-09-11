@@ -56,16 +56,19 @@ export function RevealedPicks({ games, allPicks, now }: RevealedPicksProps) {
                   </thead>
                   <tbody>
                     {picksForGame.map((pick) => (
-                      <tr key={pick.id} style={pick.isDefaultLoss ? { opacity: 0.6 } : undefined}>
+                      <tr key={pick.id} style={pick.isAutoPick ? { opacity: 0.6 } : undefined}>
                         <td>{userName(pick.userId)}</td>
-                        <td>{pick.isDefaultLoss ? 'No Pick' : pick.pickType}</td>
-                        <td>{pick.isDefaultLoss ? '—' : pick.spreadSide}</td>
+                        <td>
+                          {pick.pickType}
+                          {pick.isAutoPick && ' (auto)'}
+                        </td>
+                        <td>{pick.spreadSide || '—'}</td>
                         <td>${pick.spreadStake}</td>
                         <td>
                           <ResultStamp result={pick.result} />
                         </td>
                         <td>
-                          {pick.isDefaultLoss || !pick.totalSide || !pick.totalResult ? (
+                          {!pick.totalSide || !pick.totalResult ? (
                             '—'
                           ) : (
                             <>
