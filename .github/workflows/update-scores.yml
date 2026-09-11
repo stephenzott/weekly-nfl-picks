@@ -1,0 +1,38 @@
+# Runs scripts/update-scores.mjs on a schedule so game scores and bet
+# settlement update automatically after games finish, instead of needing an
+# admin to fetch each score by hand and then someone to open the app
+# afterward to trigger settlement. See that script for the full reasoning.
+name: Update game scores
+
+on:
+  schedule:
+    # Every 30 minutes, offset from :00/:30 to avoid GitHub's busiest
+    # scheduling windows (its docs note scheduled runs can be delayed,
+    # especially right at the top/bottom of the hour). Runs every day
+    # rather than a narrower NFL-game window, since games land on
+    # different days across a season (Thu/Sun/Mon normally, occasional
+    # Sat/international) and the job itself is a few seconds of work.
+    - cron: '7,37 * * * *'
+  # Lets Stephen (or anyone with write access) trigger a run manually from
+  # the Actions tab, e.g. right after a game ends instead of waiting for
+  # the next scheduled tick.
+  workflow_dispatch:
+
+jobs:
+  update-scores:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch finished scores from ESPN and settle affected picks
+        run: node scripts/update-scores.mjs
