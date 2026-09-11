@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AddGameForm } from '../components/admin/AddGameForm'
+import { AddMissingPickSection } from '../components/admin/AddMissingPickSection'
 import { AddWeekForm } from '../components/admin/AddWeekForm'
 import { EditGameForm } from '../components/admin/EditGameForm'
 import { EditPicksSection } from '../components/admin/EditPicksSection'
@@ -78,6 +79,7 @@ export function AdminPage() {
           )}
           <GamesList games={games} onEdit={setEditingGameId} />
 
+          <AddMissingPickSection week={selectedWeek} games={games} picksInWeek={picksInWeek} />
           <EditPicksSection games={games} picksInWeek={picksInWeek} />
 
           <hr />
