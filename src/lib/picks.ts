@@ -5,11 +5,11 @@ import type { Pick, PickResult } from '../types'
 const picksCollection = collection(db, 'picks')
 
 // Most pick types are "singleton" slots — a user gets exactly ONE AM pick,
-// ONE HighSpread pick, etc. per week, no matter which specific game they
-// choose for it (AM/PM/WildCard let the user pick among several candidate
-// games; SNF/MNF/HighSpread only ever have one possible game). Only Bonus
-// (and, later, Playoff) genuinely repeat: an admin can add several bonus
-// games in one week, and each is its own separate required pick.
+// ONE PM pick, etc. per week, no matter which specific game they choose
+// for it (AM/PM/WildCard let the user pick among several candidate games;
+// SNF/MNF only ever have one possible game). Bonus and Playoff genuinely
+// repeat: an admin can add several bonus games in one week, and each is
+// its own separate required pick.
 //
 // This distinction matters for how we compute a pick's document ID. We
 // deliberately compute IDs ourselves (instead of letting Firestore assign
@@ -19,7 +19,20 @@ const picksCollection = collection(db, 'picks')
 // your mind about which AM game to pick would produce a second document
 // (the old game's pick) that Firestore never cleans up, silently
 // double-counting against the $120 budget.
-const REPEATABLE_PICK_TYPES: Pick['pickType'][] = ['Bonus', 'Playoff']
+//
+// HighSpread joins Bonus/Playoff here even though a USER never chooses
+// which game it's for (that's an admin call, via Week.highSpreadGameId) —
+// the risk isn't the user changing their mind, it's the ADMIN repointing
+// highSpreadGameId to a different game after a real pick already exists
+// for the old one. findExistingPick (src/lib/slots.ts) requires a gameId
+// match for HighSpread specifically so the old pick becomes invisible
+// rather than blocking the new slot — but that only stays "harmless
+// leftover data," as that comment claims, if the old and new picks land
+// on DIFFERENT document IDs. Excluding gameId from a singleton HighSpread
+// ID would mean the two collide: the old (real) pick and the new
+// auto/real pick for the repointed game would overwrite the same
+// document, silently destroying whichever was saved first.
+const REPEATABLE_PICK_TYPES: Pick['pickType'][] = ['Bonus', 'Playoff', 'HighSpread']
 
 function pickDocId(pick: Pick | Omit<Pick, 'id'>): string {
   const isRepeatable = REPEATABLE_PICK_TYPES.includes(pick.pickType)

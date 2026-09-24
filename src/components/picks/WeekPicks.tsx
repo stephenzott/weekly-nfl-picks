@@ -41,8 +41,8 @@ function isFilled(entry: BudgetEntry): boolean {
 }
 
 export function WeekPicks({ week, userId }: WeekPicksProps) {
-  const games = useGamesForWeek(week.id)
-  const allPicks = usePicksForWeek(week.id)
+  const { games, loading: gamesLoading } = useGamesForWeek(week.id)
+  const { picks: allPicks, loading: picksLoading } = usePicksForWeek(week.id)
   const propDefs = usePropDefinitionsForWeek(week.id)
   const [allPropsEverywhere] = useSuperBowlProps()
   const users = useUsers()
@@ -69,9 +69,18 @@ export function WeekPicks({ week, userId }: WeekPicksProps) {
   // safe: it's idempotent (skips any slot that already has a pick) and the
   // data volume is tiny, so there's no real cost to checking often.
   useEffect(() => {
-    if (games.length === 0 || users.length === 0) return
+    // `gamesLoading`/`picksLoading` guard against the stale/empty-array
+    // race described in useGamesForWeek's and usePicksForWeek's own
+    // comments: games, picks, and users each load from independent
+    // Firestore subscriptions that can resolve in any order (and, on a
+    // week switch, briefly hold the PREVIOUS week's data). An empty or
+    // stale `allPicks`/`games` must never be mistaken for "everyone missed
+    // every pick this week" — that mistake is what silently overwrote a
+    // real week's worth of picks with random coin-flips in production.
+    if (gamesLoading || users.length === 0 || picksLoading) return
+    if (games.length === 0) return
     backfillMissedPicksForWeek(week, games, allPicks, users, now)
-  }, [week, games, allPicks, users, now])
+  }, [week, games, gamesLoading, allPicks, users, now, picksLoading])
 
   // Settlement engine (Section 4.3/4.8): whenever anyone views this week
   // and it has a game marked 'final', compute and write in the real

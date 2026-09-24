@@ -18,8 +18,8 @@ import { useWeeks } from '../hooks/useWeeks'
 export function AdminPage() {
   const weeks = useWeeks()
   const [selectedWeekId, setSelectedWeekId] = useState<string | null>(null)
-  const games = useGamesForWeek(selectedWeekId)
-  const picksInWeek = usePicksForWeek(selectedWeekId)
+  const { games } = useGamesForWeek(selectedWeekId)
+  const { picks: picksInWeek } = usePicksForWeek(selectedWeekId)
   const [editingGameId, setEditingGameId] = useState<string | null>(null)
   const editingGame = games.find((g) => g.id === editingGameId)
   const selectedWeek = weeks.find((w) => w.id === selectedWeekId)
