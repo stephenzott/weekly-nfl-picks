@@ -13,10 +13,14 @@ const SLOTS: GameSlot[] = [
   'Playoff',
 ]
 
-// Per Stephen (2026-09-08): a regular season week is capped at 6 total
-// games, full stop — including Bonus games. Playoff weeks are exempt
-// entirely (every game on that week's slate needs its own pick, however
-// many that is).
+// Per Stephen (2026-09-08, revised 2026-09-24): a regular season week is
+// capped at 6 total games — but only the games that create their own
+// required pick (AM/PM/SNF/MNF/Bonus). WildCardPool games are exempt: they're
+// just candidates feeding the single shared WildCard pick and single shared
+// HighSpread pick, so the pool can be as large as the leftover schedule
+// allows without changing how many picks a user makes that week. Playoff
+// weeks are exempt entirely (every game on that week's slate needs its own
+// pick, however many that is).
 const MAX_REGULAR_SEASON_GAMES = 6
 
 interface AddGameFormProps {
@@ -26,8 +30,6 @@ interface AddGameFormProps {
 }
 
 export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProps) {
-  const cappedGamesCount = existingGames.length
-  const atMaxGames = weekType === 'regular' && cappedGamesCount >= MAX_REGULAR_SEASON_GAMES
   const [slot, setSlot] = useState<GameSlot>('AM')
   // PROJECT_SPEC.md Section 4.2: playoff weeks have no AM/PM/SNF/etc. roles
   // — every game IS a "Playoff" pick. Per Stephen (2026-09-07): computed
@@ -37,6 +39,11 @@ export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProp
   // in the Admin dropdown, since this component isn't remounted on that
   // switch.
   const effectiveSlot = weekType === 'playoff' ? 'Playoff' : slot
+  const cappedGamesCount = existingGames.filter((g) => g.slot !== 'WildCardPool').length
+  const atMaxGames =
+    weekType === 'regular' &&
+    effectiveSlot !== 'WildCardPool' &&
+    cappedGamesCount >= MAX_REGULAR_SEASON_GAMES
   const [homeTeam, setHomeTeam] = useState('')
   const [awayTeam, setAwayTeam] = useState('')
   // The <input type="datetime-local"> element gives us back a string like
@@ -94,9 +101,9 @@ export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProp
       <h3>Add a Game</h3>
       {atMaxGames && (
         <p className="error-text">
-          This week already has {cappedGamesCount} games — regular season weeks are capped at{' '}
-          {MAX_REGULAR_SEASON_GAMES} total (including Bonus games). Edit or remove an existing game
-          instead of adding another.
+          This week already has {cappedGamesCount} AM/PM/SNF/MNF/Bonus games — those slots are
+          capped at {MAX_REGULAR_SEASON_GAMES} total. Edit or remove an existing game, or switch
+          the slot above to WildCardPool (that pool isn't capped).
         </p>
       )}
       <div>

@@ -14,8 +14,6 @@ interface ImportWildCardGamesProps {
   existingGames: Game[]
 }
 
-const MAX_REGULAR_SEASON_GAMES = 6
-
 // Per Stephen (2026-09-08): typing out every non-marquee game by hand
 // (team names, kickoff time) was pure friction once Fetch Odds already
 // has that data available — this pulls the week's remaining NFL games
@@ -25,6 +23,12 @@ const MAX_REGULAR_SEASON_GAMES = 6
 // AddGameForm — those need a deliberate admin choice of which ONE game
 // fills each marquee slot, so bulk-adding them wouldn't save real effort
 // the way it does for WildCard candidates.
+//
+// Per Stephen (2026-09-24): WildCardPool games are exempt from the
+// AM/PM/SNF/MNF/Bonus 6-game cap (see AddGameForm.tsx) — each user still
+// only makes one WildCard pick and one HighSpread pick no matter how big
+// the candidate pool is, so there's no reason to limit how many leftover
+// games can be imported here.
 export function ImportWildCardGames({ weekId, existingGames }: ImportWildCardGamesProps) {
   const [fetching, setFetching] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -33,7 +37,6 @@ export function ImportWildCardGames({ weekId, existingGames }: ImportWildCardGam
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const hasKey = Boolean(import.meta.env.VITE_ODDS_API_KEY)
-  const remainingSlots = MAX_REGULAR_SEASON_GAMES - existingGames.length
 
   // The Odds API returns every upcoming NFL game for the WHOLE season in
   // one call, not just this week's — without narrowing that down, the
@@ -106,7 +109,7 @@ export function ImportWildCardGames({ weekId, existingGames }: ImportWildCardGam
       const next = new Set(prev)
       if (next.has(key)) {
         next.delete(key)
-      } else if (next.size < remainingSlots) {
+      } else {
         next.add(key)
       }
       return next
@@ -146,16 +149,13 @@ export function ImportWildCardGames({ weekId, existingGames }: ImportWildCardGam
       <h3>Import Wild Card Games</h3>
       <button
         onClick={handleLoad}
-        disabled={!hasKey || fetching || remainingSlots <= 0 || existingGames.length === 0}
+        disabled={!hasKey || fetching || existingGames.length === 0}
       >
         {fetching ? 'Loading…' : 'Load Available Games'}
       </button>{' '}
       {!hasKey && <span>(no Odds API key configured — add games manually below)</span>}
       {hasKey && existingGames.length === 0 && (
         <span>(add at least one game first — e.g. this week's AM game — so we know which week to look for)</span>
-      )}
-      {hasKey && existingGames.length > 0 && remainingSlots <= 0 && (
-        <span>(this week is already at the {MAX_REGULAR_SEASON_GAMES}-game cap)</span>
       )}
       {error && <p className="error-text">{error}</p>}
 
@@ -166,7 +166,7 @@ export function ImportWildCardGames({ weekId, existingGames }: ImportWildCardGam
       {candidates && candidates.length > 0 && (
         <div>
           <p>
-            Pick up to {remainingSlots} to add as WildCardPool games ({selected.size} selected):
+            Pick which games to add as WildCardPool games ({selected.size} selected):
           </p>
           <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
             {candidates.map((event) => {
@@ -178,7 +178,6 @@ export function ImportWildCardGames({ weekId, existingGames }: ImportWildCardGam
                     <input
                       type="checkbox"
                       checked={checked}
-                      disabled={!checked && selected.size >= remainingSlots}
                       onChange={() => toggle(key)}
                     />{' '}
                     {nicknameFromFullName(event.awayTeamRaw)} @ {nicknameFromFullName(event.homeTeamRaw)}
