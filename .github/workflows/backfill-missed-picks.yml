@@ -1,0 +1,39 @@
+# Runs scripts/backfill-missed-picks.mjs on a schedule so a missed pick
+# gets coin-flipped in automatically once its real deadline passes, instead
+# of waiting for someone to open the app's Picks screen. See that script for
+# the full reasoning, especially around why it preserves the EXACT same
+# "wait for the last candidate to kick off" deadline rule as
+# src/lib/missedPicks.ts for WildCardPool picks.
+name: Backfill missed picks
+
+on:
+  schedule:
+    # Every 30 minutes, offset from both :00/:30 (GitHub's busiest scheduling
+    # windows) and from update-scores.yml's own 7/37 offset, so the two jobs
+    # don't contend for the same runner slot. Runs every day for the same
+    # reason update-scores.yml does: games land on different days across a
+    # season, and this job is a few seconds of work regardless.
+    - cron: '22,52 * * * *'
+  # Lets Stephen (or anyone with write access) trigger a run manually from
+  # the Actions tab, e.g. right after a deadline passes instead of waiting
+  # for the next scheduled tick.
+  workflow_dispatch:
+
+jobs:
+  backfill-missed-picks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Coin-flip in any pick that's missed its deadline
+        run: node scripts/backfill-missed-picks.mjs
