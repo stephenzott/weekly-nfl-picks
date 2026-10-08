@@ -1,49 +1,19 @@
 import { Timestamp } from 'firebase/firestore'
 import { useState } from 'react'
 import { addGame } from '../../lib/games'
-import type { Game, GameSlot, WeekType } from '../../types'
-
-const SLOTS: GameSlot[] = [
-  'AM',
-  'PM',
-  'SNF',
-  'MNF',
-  'WildCardPool',
-  'Bonus',
-  'Playoff',
-]
-
-// Per Stephen (2026-09-08, revised 2026-09-24): a regular season week is
-// capped at 6 total games — but only the games that create their own
-// required pick (AM/PM/SNF/MNF/Bonus). WildCardPool games are exempt: they're
-// just candidates feeding the single shared WildCard pick and single shared
-// HighSpread pick, so the pool can be as large as the leftover schedule
-// allows without changing how many picks a user makes that week. Playoff
-// weeks are exempt entirely (every game on that week's slate needs its own
-// pick, however many that is).
-const MAX_REGULAR_SEASON_GAMES = 6
 
 interface AddGameFormProps {
   weekId: string
-  weekType: WeekType
-  existingGames: Game[]
 }
 
-export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProps) {
-  const [slot, setSlot] = useState<GameSlot>('AM')
-  // PROJECT_SPEC.md Section 4.2: playoff weeks have no AM/PM/SNF/etc. roles
-  // — every game IS a "Playoff" pick. Per Stephen (2026-09-07): computed
-  // fresh from the `weekType` prop at submit time (rather than trusted from
-  // `slot` state) so it's always correct regardless of what `slot` happens
-  // to hold — e.g. left over from before switching which week is selected
-  // in the Admin dropdown, since this component isn't remounted on that
-  // switch.
-  const effectiveSlot = weekType === 'playoff' ? 'Playoff' : slot
-  const cappedGamesCount = existingGames.filter((g) => g.slot !== 'WildCardPool').length
-  const atMaxGames =
-    weekType === 'regular' &&
-    effectiveSlot !== 'WildCardPool' &&
-    cappedGamesCount >= MAX_REGULAR_SEASON_GAMES
+// Playoff weeks have no AM/PM/SNF/MNF/WildCardPool structure — every game on
+// the slate requires its own pick (PROJECT_SPEC.md Section 4.2), so this form
+// stays a plain one-at-a-time manual entry with the slot hardcoded to
+// 'Playoff'. Regular season weeks no longer use this component at all: see
+// ImportGames.tsx + SharedSlotsPicker.tsx, which pull games from the Odds API
+// and assign them to the 5 shared slots (AM/PM/SNF/MNF/HighSpread) plus Bonus
+// instead of typing them in by hand.
+export function AddGameForm({ weekId }: AddGameFormProps) {
   const [homeTeam, setHomeTeam] = useState('')
   const [awayTeam, setAwayTeam] = useState('')
   // The <input type="datetime-local"> element gives us back a string like
@@ -59,7 +29,7 @@ export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProp
   const [total, setTotal] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const canSubmit = Boolean(homeTeam.trim() && awayTeam.trim() && kickoffLocal) && !atMaxGames
+  const canSubmit = Boolean(homeTeam.trim() && awayTeam.trim() && kickoffLocal)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -69,7 +39,7 @@ export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProp
     try {
       await addGame({
         weekId,
-        slot: effectiveSlot,
+        slot: 'Playoff',
         homeTeam: homeTeam.trim(),
         awayTeam: awayTeam.trim(),
         kickoffTime: Timestamp.fromDate(new Date(kickoffLocal)),
@@ -82,9 +52,6 @@ export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProp
         status: 'scheduled',
         lineSource: 'manual',
       })
-      // Reset the form for the next game, but leave `slot` alone since
-      // admins will often add several games in the same slot in a row
-      // (e.g. multiple WildCardPool games).
       setHomeTeam('')
       setAwayTeam('')
       setKickoffLocal('')
@@ -99,29 +66,7 @@ export function AddGameForm({ weekId, weekType, existingGames }: AddGameFormProp
   return (
     <form onSubmit={handleSubmit}>
       <h3>Add a Game</h3>
-      {atMaxGames && (
-        <p className="error-text">
-          This week already has {cappedGamesCount} AM/PM/SNF/MNF/Bonus games — those slots are
-          capped at {MAX_REGULAR_SEASON_GAMES} total. Edit or remove an existing game, or switch
-          the slot above to WildCardPool (that pool isn't capped).
-        </p>
-      )}
-      <div>
-        {weekType === 'playoff' ? (
-          <label>Slot: Playoff (every game in a playoff week requires a pick)</label>
-        ) : (
-          <label>
-            Slot{' '}
-            <select value={slot} onChange={(e) => setSlot(e.target.value as GameSlot)}>
-              {SLOTS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </div>
+      <label>Slot: Playoff (every game in a playoff week requires a pick)</label>
       <div>
         <label>
           Away team{' '}

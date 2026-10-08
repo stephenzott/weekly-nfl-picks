@@ -6,10 +6,10 @@ import { EditGameForm } from '../components/admin/EditGameForm'
 import { EditPicksSection } from '../components/admin/EditPicksSection'
 import { FetchOddsButton } from '../components/admin/FetchOddsButton'
 import { GamesList } from '../components/admin/GamesList'
-import { HighSpreadPicker } from '../components/admin/HighSpreadPicker'
 import { HowToAddGames } from '../components/admin/HowToAddGames'
-import { ImportWildCardGames } from '../components/admin/ImportWildCardGames'
+import { ImportGames } from '../components/admin/ImportGames'
 import { PropDefinitionsSection } from '../components/admin/PropDefinitionsSection'
+import { SharedSlotsPicker } from '../components/admin/SharedSlotsPicker'
 import { SeasonWinTotalsSection } from '../components/admin/SeasonWinTotalsSection'
 import { useGamesForWeek } from '../hooks/useGamesForWeek'
 import { usePicksForWeek } from '../hooks/usePicksForWeek'
@@ -54,7 +54,13 @@ export function AdminPage() {
 
       {selectedWeekId && selectedWeek && (
         <>
-          <AddGameForm weekId={selectedWeekId} weekType={selectedWeek.type} existingGames={games} />
+          {/* Playoff weeks keep the old manual-entry flow (no AM/PM/SNF/MNF
+              structure to assign games into — every game on the slate IS its
+              own required pick). Regular weeks are import-only: ImportGames
+              pulls games from the Odds API into a shared pool, and
+              SharedSlotsPicker is where the admin assigns AM/PM/SNF/MNF/
+              HighSpread/Bonus roles to specific pool games. */}
+          {selectedWeek.type === 'playoff' && <AddGameForm weekId={selectedWeekId} />}
           {editingGame && (
             // `key` forces a fresh remount (and fresh useState initializers)
             // when switching which game is being edited — without it,
@@ -66,16 +72,17 @@ export function AdminPage() {
             <EditGameForm
               key={editingGame.id}
               game={editingGame}
-              weekType={selectedWeek.type}
               onDone={() => setEditingGameId(null)}
             />
           )}
           {selectedWeek.type === 'regular' && (
-            <ImportWildCardGames weekId={selectedWeekId} existingGames={games} />
+            <>
+              <ImportGames weekId={selectedWeekId} existingGames={games} picksInWeek={picksInWeek} />
+              <SharedSlotsPicker week={selectedWeek} games={games} picksInWeek={picksInWeek} />
+            </>
           )}
-          <FetchOddsButton games={games} picksInWeek={picksInWeek} />
-          {selectedWeek.type === 'regular' && (
-            <HighSpreadPicker week={selectedWeek} games={games} picksInWeek={picksInWeek} />
+          {selectedWeek.type === 'playoff' && (
+            <FetchOddsButton games={games} picksInWeek={picksInWeek} />
           )}
           <GamesList games={games} onEdit={setEditingGameId} />
 

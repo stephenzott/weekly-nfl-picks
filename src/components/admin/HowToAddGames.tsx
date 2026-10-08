@@ -16,48 +16,55 @@ export function HowToAddGames() {
         {open ? 'Hide' : 'How to add games'}
       </button>
       {open && (
-        <ol style={{ maxWidth: 640 }}>
-          <li>
-            Add exactly one game each for <strong>AM</strong> (1pm), <strong>PM</strong> (4pm),{' '}
-            <strong>SNF</strong>, and <strong>MNF</strong> — set the Slot dropdown to match when
-            adding each one. Every user bets these same 4 games.
-          </li>
-          <li>
-            Add any one-off <strong>Bonus</strong> games for the week (international game,
-            Thanksgiving game, etc.) with Slot set to Bonus. Each Bonus game is its own required
-            pick.
-          </li>
-          <li>
-            Add extra games as <strong>WildCardPool</strong> — these feed the Wild Card and
-            Highest Spread picks below. You need at least 2 of these for BOTH picks to show up
-            (1 becomes Highest Spread, whatever's left becomes the Wild Card pool); with only 1,
-            it can become Highest Spread but there's no Wild Card that week. Use{' '}
-            <strong>Import Wild Card Games</strong> to pull these in from the Odds API instead of
-            typing them by hand — it lists games near this week's dates that aren't already on
-            the board and pre-fills team names, kickoff, spread, and total for whichever ones you
-            check off. It needs at least one game already added (do step 1 first) so it knows
-            which week to look for — the Odds API returns the whole season in one call.
-          </li>
-          <li>
-            A regular season week caps out at <strong>6 games total</strong> — including Bonus.
-            "Add Game" disables itself once you hit 6, so if you want Bonus AND
-            WildCard/HighSpread games, budget for that (e.g. 4 marquee + 2 WildCardPool leaves no
-            room for Bonus that week).
-          </li>
-          <li>
-            Click <strong>Fetch Odds</strong> to auto-fill spread/total for every game you've
-            added so far (matched by team name). If you add more games afterward, click it again.
-          </li>
-          <li>
-            Use the <strong>Highest Spread Pick</strong> dropdown to choose which WildCardPool
-            game is this week's Highest Spread pick. Once someone actually picks it, that
-            selection locks — you can't reassign it out from under them.
-          </li>
-          <li>
-            That's it — there's no separate "save the week" step. Everything saves as you go, and
-            users can start picking as soon as the games they need exist.
-          </li>
-        </ol>
+        <>
+          <p>
+            <strong>Regular season weeks</strong> are import-only — there's no manual game entry
+            anymore:
+          </p>
+          <ol style={{ maxWidth: 640 }}>
+            <li>
+              Set the date range in <strong>Import Games</strong> to cover this week's games
+              (defaults to today through a week out — widen it for holiday weeks with odd kickoff
+              days, e.g. the Wednesday game before Thanksgiving or a Friday/Christmas game), then
+              click <strong>Load Games</strong>.
+            </li>
+            <li>
+              Review the new-games checklist (unchecking anything you don't want) and click{' '}
+              <strong>Import</strong>. Every new game lands in a shared pool — this same click
+              also refreshes spread/total odds on games already on the board.
+            </li>
+            <li>
+              In <strong>Shared Games</strong> below, use the dropdowns to assign one pool game
+              each to <strong>AM</strong> (1pm), <strong>PM</strong> (4pm), <strong>SNF</strong>,{' '}
+              <strong>MNF</strong>, and <strong>Highest Spread of the Week</strong>. Every user
+              bets these same 5 games. Optionally check off any one-off <strong>Bonus</strong>{' '}
+              games (international game, Thanksgiving game, etc.) — each is its own required pick.
+            </li>
+            <li>
+              Whatever's left unassigned in the pool automatically becomes the Wild Card pick
+              (users pick any one leftover game) — you need at least 2 leftover games for that
+              pick to show up.
+            </li>
+            <li>
+              A week caps out at <strong>6 total</strong> marquee + Bonus games (AM/PM/SNF/MNF
+              plus however many Bonus games) — the Bonus checklist disables itself once you hit
+              that limit. WildCard and HighSpread don't count toward it.
+            </li>
+            <li>
+              Once someone actually picks a game, its slot locks — you can't reassign it (or the
+              Highest Spread pick) out from under them.
+            </li>
+            <li>
+              That's it — there's no separate "save the week" step. Everything saves as you go,
+              and users can start picking as soon as the games they need exist.
+            </li>
+          </ol>
+          <p>
+            <strong>Playoff weeks</strong> still use manual entry below (<strong>Add a Game</strong>
+            ) — every game on a playoff slate requires its own pick, so there's no shared-slot
+            structure to assign games into.
+          </p>
+        </>
       )}
     </div>
   )

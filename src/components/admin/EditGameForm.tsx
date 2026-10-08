@@ -2,9 +2,7 @@ import { Timestamp } from 'firebase/firestore'
 import { useState } from 'react'
 import { fetchEspnScore } from '../../lib/espn'
 import { updateGame } from '../../lib/games'
-import type { Game, GameSlot, WeekType } from '../../types'
-
-const SLOTS: GameSlot[] = ['AM', 'PM', 'SNF', 'MNF', 'WildCardPool', 'Bonus', 'Playoff']
+import type { Game } from '../../types'
 
 // Converts a Firestore Timestamp into the string format
 // <input type="datetime-local"> expects ("YYYY-MM-DDTHH:mm"), in the
@@ -18,16 +16,14 @@ function toDatetimeLocalValue(timestamp: Game['kickoffTime']): string {
 
 interface EditGameFormProps {
   game: Game
-  weekType: WeekType
   onDone: () => void
 }
 
-export function EditGameForm({ game, weekType, onDone }: EditGameFormProps) {
-  const [slot, setSlot] = useState<GameSlot>(game.slot)
-  // Same reasoning as AddGameForm: playoff weeks lock every game to the
-  // "Playoff" slot, computed fresh from `weekType` rather than trusted
-  // from `slot` state.
-  const effectiveSlot = weekType === 'playoff' ? 'Playoff' : slot
+// A game's slot is no longer editable here: for regular weeks it's set by
+// SharedSlotsPicker.tsx (AM/PM/SNF/MNF/HighSpread/Bonus/WildCardPool), and
+// playoff games are always 'Playoff'. This form only edits the details that
+// don't affect which required pick a game belongs to.
+export function EditGameForm({ game, onDone }: EditGameFormProps) {
   const [homeTeam, setHomeTeam] = useState(game.homeTeam)
   const [awayTeam, setAwayTeam] = useState(game.awayTeam)
   const [kickoffLocal, setKickoffLocal] = useState(() => toDatetimeLocalValue(game.kickoffTime))
@@ -67,7 +63,6 @@ export function EditGameForm({ game, weekType, onDone }: EditGameFormProps) {
     setDetailsError(null)
     try {
       await updateGame(game.id, {
-        slot: effectiveSlot,
         homeTeam: homeTeam.trim(),
         awayTeam: awayTeam.trim(),
         kickoffTime: Timestamp.fromDate(new Date(kickoffLocal)),
@@ -139,20 +134,7 @@ export function EditGameForm({ game, weekType, onDone }: EditGameFormProps) {
       <fieldset>
         <legend>Game Details</legend>
         <div>
-          {weekType === 'playoff' ? (
-            <label>Slot: Playoff (every game in a playoff week requires a pick)</label>
-          ) : (
-            <label>
-              Slot{' '}
-              <select value={slot} onChange={(e) => setSlot(e.target.value as GameSlot)}>
-                {SLOTS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <label>Slot: {game.slot}</label>
         </div>
         <div>
           <label>
