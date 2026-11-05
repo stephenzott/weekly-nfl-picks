@@ -31,6 +31,12 @@ export async function settleWeekPicks(games: Game[], allPicks: Pick[]): Promise<
     // that one case is skipped explicitly instead.
     if (pick.isAutoPick && pick.spreadSide === '') continue
 
+    // A voided pick (src/types.ts) is an admin's "soft delete" — settling
+    // it would write a real win/loss/push onto a pick that's supposed to
+    // behave as if it doesn't exist, double-counting against the real
+    // replacement pick made for the correct game.
+    if (pick.voided) continue
+
     const game = gamesById.get(pick.gameId)
     if (!game) continue
 

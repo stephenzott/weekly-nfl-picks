@@ -108,6 +108,20 @@ export interface Pick {
   // for display only (e.g. RevealedPicks.tsx labeling it "auto-picked"),
   // not for special-casing settlement or the standings record anymore.
   isAutoPick: boolean
+  // Added 2026-11-05: Firestore rules permanently block deleting a pick
+  // (firestore.rules' top comment), so there was no way to undo a pick
+  // once an admin needed to repoint Week.highSpreadGameId to a different
+  // game after a real pick already existed against the old one — the old
+  // pick would otherwise sit there and double-count (standings, budget,
+  // settlement all sum picks without resolving them against the week's
+  // CURRENT slot assignment). Setting this true is the "soft delete":
+  // every aggregate (computeStandings, settleWeekPicks, BudgetSummary via
+  // WeekPicks.tsx's filtering) is taught to skip voided picks, so one
+  // behaves as if deleted without touching the no-delete rule. Optional
+  // (not in firestore.rules' hasAll) since every pick before this feature
+  // predates the field — absent/undefined means "not voided," same as
+  // false.
+  voided?: boolean
 }
 
 export type WinTotalSide = 'over' | 'under'

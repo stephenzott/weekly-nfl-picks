@@ -42,7 +42,14 @@ function isFilled(entry: BudgetEntry): boolean {
 
 export function WeekPicks({ week, userId }: WeekPicksProps) {
   const { games, loading: gamesLoading } = useGamesForWeek(week.id)
-  const { picks: allPicks, loading: picksLoading } = usePicksForWeek(week.id)
+  const { picks: allPicksRaw, loading: picksLoading } = usePicksForWeek(week.id)
+  // A voided pick (src/types.ts) is an admin's "soft delete" of a pick
+  // stuck against a game that's no longer the real slot it was answered
+  // for — filtered out once here so budget totals, slot matching
+  // (findExistingPick below), settlement, and the revealed-picks table
+  // all agree it doesn't exist, without each of them needing their own
+  // filter.
+  const allPicks = allPicksRaw.filter((p) => !p.voided)
   const propDefs = usePropDefinitionsForWeek(week.id)
   const [allPropsEverywhere] = useSuperBowlProps()
   const users = useUsers()

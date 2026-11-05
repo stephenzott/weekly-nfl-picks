@@ -123,3 +123,14 @@ export async function updatePickDetails(
 ): Promise<void> {
   await updateDoc(doc(db, 'picks', pickId), updates)
 }
+
+// Admin correction path (src/components/admin/SharedSlotsPicker.tsx) for
+// when Week.highSpreadGameId needs to be repointed at a different game
+// after a real pick already exists against the current one. Firestore
+// rules permanently block deleting a pick (see firestore.rules' top
+// comment on why), so this is a "soft delete" instead — see the `voided`
+// field's comment on Pick (src/types.ts) for how every money-aggregating
+// function is taught to treat a voided pick as if it didn't exist.
+export async function voidPick(pickId: string): Promise<void> {
+  await updateDoc(doc(db, 'picks', pickId), { voided: true })
+}

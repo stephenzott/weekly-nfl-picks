@@ -89,8 +89,16 @@ export function computeStandings(
 ): StandingsRow[] {
   const propDefsById = new Map(propDefs.map((d) => [d.id, d]))
 
+  // A voided pick (src/types.ts) is an admin's "soft delete" of a pick
+  // stuck pointing at a game that's no longer the real HighSpread/etc.
+  // slot — Firestore can't actually delete it (firestore.rules blocks
+  // delete everywhere), so it must be filtered out here or it would
+  // settle and get counted alongside the real replacement pick, silently
+  // double-counting that week's money.
+  const activePicks = allPicks.filter((p) => !p.voided)
+
   return users.map((user) => {
-    const myPicks = allPicks.filter((p) => p.userId === user.id)
+    const myPicks = activePicks.filter((p) => p.userId === user.id)
     const myWinTotals = seasonWinTotals.filter((b) => b.userId === user.id)
     const myProps = allProps.filter((p) => p.userId === user.id)
 

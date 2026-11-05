@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { useUsers } from '../../hooks/useUsers'
 import { updateGame } from '../../lib/games'
+import { voidPick } from '../../lib/picks'
 import { sortBySpreadDesc } from '../../lib/slots'
 import { setHighSpreadGame } from '../../lib/weeks'
 import type { Game, GameSlot, Pick as PickDoc, Week } from '../../types'
@@ -49,9 +51,13 @@ function gameLabel(game: Game): string {
 // WildCardPool the whole time (see setHighSpreadGame/computeSlotsForRegularWeek).
 export function SharedSlotsPicker({ week, games, picksInWeek }: SharedSlotsPickerProps) {
   const [saving, setSaving] = useState(false)
+  const users = useUsers()
 
+  // A voided pick (src/types.ts) is handleResetHighSpread's "soft delete"
+  // below — it must not count toward any slot's lock, or voiding would
+  // have no effect on this dropdown's `disabled` state.
   function gameHasAnyPick(gameId: string): boolean {
-    return picksInWeek.some((p) => p.gameId === gameId)
+    return picksInWeek.some((p) => p.gameId === gameId && !p.voided)
   }
 
   // A pool game that's already been picked (as that week's WildCard choice,
@@ -106,6 +112,38 @@ export function SharedSlotsPicker({ week, games, picksInWeek }: SharedSlotsPicke
     setSaving(true)
     try {
       await setHighSpreadGame(week.id, gameId || null)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Unsticks the "Highest Spread of the Week" dropdown once a line move
+  // makes the current selection wrong but a real pick already exists
+  // against it (the dropdown's own `disabled` guard below). Firestore
+  // can't actually delete that pick (firestore.rules blocks delete on
+  // every collection, deliberately), so this voids it instead — see the
+  // `voided` field's comment on Pick for how standings/settlement/budget
+  // are all taught to treat a voided pick as if it were gone. The voided
+  // pick(s) stay in Firestore as harmless inert rows; each affected
+  // player needs to come back and make a fresh HighSpread pick once a
+  // new game is selected below.
+  async function handleResetHighSpread() {
+    const stuckPicks = picksInWeek.filter(
+      (p) => p.pickType === 'HighSpread' && p.gameId === currentHighSpreadId && !p.voided,
+    )
+    if (stuckPicks.length === 0) return
+    const names = stuckPicks
+      .map((p) => users.find((u) => u.id === p.userId)?.name ?? p.userId)
+      .join(', ')
+    const confirmed = window.confirm(
+      `This will void ${stuckPicks.length} existing HighSpread pick(s) (${names}) so you can ` +
+        `reassign this slot to a different game. Those players will need to come back and make ` +
+        `a new HighSpread pick afterward. Continue?`,
+    )
+    if (!confirmed) return
+    setSaving(true)
+    try {
+      await Promise.all(stuckPicks.map((p) => voidPick(p.id)))
     } finally {
       setSaving(false)
     }
@@ -181,7 +219,14 @@ export function SharedSlotsPicker({ week, games, picksInWeek }: SharedSlotsPicke
             ))}
           </select>
         </label>{' '}
-        {isHighSpreadLocked && <span>(locked — someone has already picked this game)</span>}
+        {isHighSpreadLocked && (
+          <>
+            <span>(locked — someone has already picked this game)</span>{' '}
+            <button type="button" onClick={handleResetHighSpread} disabled={saving}>
+              Void pick(s) &amp; unlock
+            </button>
+          </>
+        )}
       </div>
 
       <fieldset>

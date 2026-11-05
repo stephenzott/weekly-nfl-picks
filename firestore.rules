@@ -129,7 +129,13 @@ service cloud.firestore {
         && isPickResult(data.result)
         && (data.totalResult == null || isPickResult(data.totalResult))
         && (data.totalSide != null || data.totalResult == null)
-        && data.isAutoPick is bool;
+        && data.isAutoPick is bool
+        // voided (added 2026-11-05) is the "soft delete" admins use to
+        // neutralize a stuck pick instead of actually deleting it (delete
+        // stays blocked below) — not in hasAll above since every pick
+        // before this feature predates it, same optional-field pattern as
+        // Week.highSpreadGameId.
+        && (!('voided' in data) || data.voided is bool);
         // Per Stephen (2026-09-11): unlike the old "isDefaultLoss" rule,
         // an auto-pick is a real coin-flipped bet that settles normally —
         // win, loss, or push — so there's no longer a rule forcing
