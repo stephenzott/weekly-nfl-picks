@@ -139,7 +139,12 @@ export function ImportGames({ weekId, existingGames, picksInWeek }: ImportGamesP
       for (const game of existingGames) {
         const match = findMatchingOdds(loadedEvents, game.homeTeam, game.awayTeam)
         if (!match) continue
-        if (picksInWeek.some((p) => p.gameId === game.id)) {
+        // A voided pick (src/types.ts) is an admin's "soft delete" of a
+        // pick stuck against a game whose line needs to change — it must
+        // not count toward line-locking, or voiding a pick would have no
+        // effect on this refresh (same fix as FetchOddsButton.tsx and
+        // SharedSlotsPicker's gameHasAnyPick).
+        if (picksInWeek.some((p) => p.gameId === game.id && !p.voided)) {
           lineLocked++
           continue
         }
