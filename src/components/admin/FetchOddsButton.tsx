@@ -61,7 +61,12 @@ export function FetchOddsButton({ games, picksInWeek }: FetchOddsButtonProps) {
           noMatch++
           continue
         }
-        if (picksInWeek.some((p) => p.gameId === game.id)) {
+        // A voided pick (src/types.ts) is an admin's "soft delete" of a
+        // pick stuck against a game whose line needs to change — it must
+        // not count toward line-locking, or voiding a pick would have no
+        // effect on this refetch (see SharedSlotsPicker's gameHasAnyPick
+        // for the same fix applied to the HighSpread lock).
+        if (picksInWeek.some((p) => p.gameId === game.id && !p.voided)) {
           lineLocked++
           continue
         }
